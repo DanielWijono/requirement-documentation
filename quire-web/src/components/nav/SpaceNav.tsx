@@ -4,7 +4,7 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import { ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { useContentStore, usePageTree, useSpace, ancestorChainIn } from '../../store/contentStore'
+import { usePageTree, useSpace, ancestorChainIn } from '../../store/contentStore'
 import { PageTreeItem } from './PageTreeItem'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
@@ -149,11 +149,4 @@ function NavRow({ icon, label, onClick }: { icon: ReactNode; label: string; onCl
       {label}
     </button>
   )
-}
-
-export function useCurrentSpaceStar() {
-  const { spaceId } = useParams()
-  const space = useSpace(spaceId)
-  const toggleSpaceStar = useContentStore((s) => s.toggleSpaceStar)
-  return { starred: space?.starred, toggle: () => spaceId && toggleSpaceStar(spaceId) }
 }

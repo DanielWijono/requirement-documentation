@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { FileText, Moon, Plus, Search, Sun, X } from 'lucide-react'
+import { FileText, Plus, Search, Sun, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
@@ -32,6 +32,11 @@ function highlight(text: string, query: string) {
 
 export function CommandPalette() {
   const open = useUIStore((s) => s.commandPaletteOpen)
+  // Mount only while open so query, scope and selection reset on every opening.
+  return open ? <CommandPaletteBody /> : null
+}
+
+function CommandPaletteBody() {
   const close = useUIStore((s) => s.closeCommandPalette)
   const theme = useUIStore((s) => s.theme)
   const setTheme = useUIStore((s) => s.setTheme)
@@ -42,20 +47,10 @@ export function CommandPalette() {
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
 
   const [query, setQuery] = useState('')
-  const [scope, setScope] = useState<string | null>(null)
+  const [scope, setScope] = useState<string | null>(spaceId ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
 
-  useEscapeKey(close, open)
-
-  useEffect(() => {
-    if (open) {
-      setQuery('')
-      setScope(spaceId ?? null)
-      setActiveIndex(0)
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
-  }, [open, spaceId])
+  useEscapeKey(close)
 
   const scopeSpace = spaces.find((s) => s.id === scope)
 
@@ -112,8 +107,6 @@ export function CommandPalette() {
     return [...pageResults, ...spaceResults, ...peopleResults]
   }, [query, scope, pages, spaces, recentlyViewed, navigate, setTheme, theme])
 
-  if (!open) return null
-
   function commit(index: number) {
     const r = results[index]
     if (!r) return
@@ -141,7 +134,7 @@ export function CommandPalette() {
             </span>
           )}
           <input
-            ref={inputRef}
+            autoFocus
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -211,8 +204,4 @@ function ResultIcon({ result }: { result: Result }) {
   if (result.kind === 'action') return <Plus className="w-4 h-4 text-(--color-text-secondary)" strokeWidth={1.5} />
   if (result.kind === 'space') return <span className="w-6 text-center">{result.subtitle ? '📁' : '📁'}</span>
   return <FileText className="w-4 h-4 text-(--color-text-secondary)" strokeWidth={1.5} />
-}
-
-export function useThemeIcon(theme: string) {
-  return theme === 'dark' ? Moon : Sun
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { ChevronRight, FileText, Lock, MoreHorizontal, Plus } from 'lucide-react'
 import type { PageTreeNode } from '../../types'
@@ -111,9 +111,4 @@ export function PageTreeItem({
       <CreatePageModal open={createOpen} onClose={() => setCreateOpen(false)} defaultSpaceId={spaceId} defaultParentId={node.id} />
     </div>
   )
-}
-
-export function useActivePageId() {
-  const { pageId } = useParams()
-  return pageId
 }

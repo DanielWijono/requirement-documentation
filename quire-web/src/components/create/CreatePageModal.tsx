@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { FileText, LayoutTemplate, MessagesSquare, Rows3 } from 'lucide-react'
@@ -26,17 +26,19 @@ function flattenTree(nodes: PageTreeNode[], depth = 0): { id: string; title: str
   return nodes.flatMap((n) => [{ id: n.id, title: n.title, depth }, ...flattenTree(n.children, depth + 1)])
 }
 
-export function CreatePageModal({
-  open,
-  onClose,
-  defaultSpaceId,
-  defaultParentId = null,
-}: {
+interface CreatePageModalProps {
   open: boolean
   onClose: () => void
   defaultSpaceId: string
   defaultParentId?: string | null
-}) {
+}
+
+export function CreatePageModal(props: CreatePageModalProps) {
+  // Mount the body only while open so each opening starts from the defaults.
+  return props.open ? <CreatePageModalBody {...props} /> : null
+}
+
+function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = null }: CreatePageModalProps) {
   const navigate = useNavigate()
   const spaces = useContentStore((s) => s.spaces)
   const pageTree = useContentStore((s) => s.pageTree)
@@ -45,14 +47,6 @@ export function CreatePageModal({
   const [spaceId, setSpaceId] = useState(defaultSpaceId)
   const [parentId, setParentId] = useState<string | null>(defaultParentId)
   const [templateId, setTemplateId] = useState('blank')
-
-  useEffect(() => {
-    if (open) {
-      setSpaceId(defaultSpaceId)
-      setParentId(defaultParentId)
-      setTemplateId('blank')
-    }
-  }, [open, defaultSpaceId, defaultParentId])
 
   const flatPages = useMemo(() => flattenTree(pageTree[spaceId] ?? []), [pageTree, spaceId])
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0]

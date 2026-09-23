@@ -3,6 +3,19 @@ import type { Editor } from '@tiptap/react'
 import { Bold, Code2, Highlighter, Italic, Link as LinkIcon, MessageSquarePlus } from 'lucide-react'
 import clsx from 'clsx'
 
+function ToolbarButton({ active, onClick, icon: Icon, label }: { active?: boolean; onClick: () => void; icon: typeof Bold; label: string }) {
+  return (
+    <button
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      aria-label={label}
+      className={clsx('w-7 h-7 flex items-center justify-center rounded-(--radius-sm)', active ? 'bg-(--color-bg-selected) text-(--color-text-link)' : 'text-(--color-text-onaccent) hover:bg-white/10')}
+    >
+      <Icon className="w-4 h-4" strokeWidth={1.5} />
+    </button>
+  )
+}
+
 export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment: (selectedText: string) => void }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
 
@@ -30,19 +43,6 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
 
   if (!rect) return null
 
-  function Btn({ active, onClick, icon: Icon, label }: { active?: boolean; onClick: () => void; icon: typeof Bold; label: string }) {
-    return (
-      <button
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        aria-label={label}
-        className={clsx('w-7 h-7 flex items-center justify-center rounded-(--radius-sm)', active ? 'bg-(--color-bg-selected) text-(--color-text-link)' : 'text-(--color-text-onaccent) hover:bg-white/10')}
-      >
-        <Icon className="w-4 h-4" strokeWidth={1.5} />
-      </button>
-    )
-  }
-
   return (
     <div
       style={{
@@ -55,10 +55,10 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
       }}
       className="z-(--z-popover) flex items-center gap-0.5 px-1 py-1 rounded-(--radius-md)"
     >
-      <Btn icon={Bold} label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
-      <Btn icon={Italic} label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
-      <Btn icon={Code2} label="Code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
-      <Btn
+      <ToolbarButton icon={Bold} label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
+      <ToolbarButton icon={Italic} label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
+      <ToolbarButton icon={Code2} label="Code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
+      <ToolbarButton
         icon={LinkIcon}
         label="Link"
         active={editor.isActive('link')}
@@ -67,9 +67,9 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
           if (url) editor.chain().focus().setLink({ href: url }).run()
         }}
       />
-      <Btn icon={Highlighter} label="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()} />
+      <ToolbarButton icon={Highlighter} label="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()} />
       <span className="w-px h-5 bg-white/20 mx-0.5" />
-      <Btn
+      <ToolbarButton
         icon={MessageSquarePlus}
         label="Comment"
         onClick={() => {

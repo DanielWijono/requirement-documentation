@@ -22,7 +22,8 @@ import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
 import { Modal } from '../ui/Modal'
 import { EditorToolbar } from './EditorToolbar'
-import { SlashMenu, useSlashMenu } from './SlashMenu'
+import { SlashMenu } from './SlashMenu'
+import { useSlashMenu } from './useSlashMenu'
 import { BubbleToolbar } from './BubbleToolbar'
 import { Callout } from './extensions/callout'
 import { Expand } from './extensions/expand'
@@ -244,7 +245,7 @@ export function EditorShell() {
         </div>
       </div>
 
-      <SlashMenu editor={editor} open={slash.open} query={slash.query} rect={slash.rect} onCommit={slash.commit} onClose={slash.close} />
+      <SlashMenu key={`${slash.open}-${slash.query}`} editor={editor} open={slash.open} query={slash.query} rect={slash.rect} onCommit={slash.commit} onClose={slash.close} />
       <BubbleToolbar editor={editor} onComment={handleComment} />
 
       <Modal

@@ -68,6 +68,17 @@ describe('Command palette', () => {
     expect(within(dialog).getByText('plan')).toBeInTheDocument() // "Q3 plan" with "Q3" highlighted
   })
 
+  it('resets query and scope every time it reopens', async () => {
+    const { user } = renderApp('/spaces/sp.eng')
+    await user.keyboard('{Meta>}k{/Meta}')
+    await user.type(screen.getByPlaceholderText(/search pages/i), 'zzz')
+    await user.click(screen.getByRole('button', { name: 'Remove scope' }))
+    await user.keyboard('{Escape}')
+    await user.keyboard('{Meta>}k{/Meta}')
+    expect(screen.getByPlaceholderText(/search pages/i)).toHaveValue('')
+    expect(screen.getByText(/In ENG/)).toBeInTheDocument()
+  })
+
   it('Toggle theme action switches theme', async () => {
     const { user } = renderApp('/')
     await user.keyboard('{Meta>}k{/Meta}')

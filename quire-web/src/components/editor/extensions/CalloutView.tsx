@@ -1,5 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core'
-import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/core'
 import { AlertTriangle, CircleAlert, Info, Lightbulb, OctagonAlert } from 'lucide-react'
 
@@ -13,7 +12,7 @@ const TONE: Record<CalloutType, { label: string; icon: typeof Info; bg: string; 
   danger: { label: 'Danger', icon: OctagonAlert, bg: 'var(--status-danger-subtle)', text: 'var(--status-danger-text)' },
 }
 
-function CalloutView({ node, updateAttributes }: NodeViewProps) {
+export function CalloutView({ node, updateAttributes }: NodeViewProps) {
   const type = (node.attrs.calloutType as CalloutType) ?? 'info'
   const tone = TONE[type]
   const Icon = tone.icon
@@ -45,28 +44,3 @@ function CalloutView({ node, updateAttributes }: NodeViewProps) {
     </NodeViewWrapper>
   )
 }
-
-export const Callout = Node.create({
-  name: 'callout',
-  group: 'block',
-  content: 'paragraph+',
-  defining: true,
-
-  addAttributes() {
-    return {
-      calloutType: { default: 'info', renderHTML: () => ({}) },
-    }
-  },
-
-  parseHTML() {
-    return [{ tag: 'div[data-callout]', getAttrs: (el) => ({ calloutType: (el as HTMLElement).getAttribute('data-callout') }) }]
-  },
-
-  renderHTML({ HTMLAttributes, node }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-callout': node.attrs.calloutType }), 0]
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(CalloutView)
-  },
-})

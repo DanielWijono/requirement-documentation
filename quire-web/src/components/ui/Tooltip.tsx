@@ -1,4 +1,4 @@
-import { cloneElement, useRef, useState } from 'react'
+import { cloneElement, useEffect, useState } from 'react'
 import type { FocusEvent, MouseEvent, ReactElement } from 'react'
 import clsx from 'clsx'
 
@@ -20,14 +20,20 @@ export function Tooltip({
   children: ReactElement<TriggerProps>
   side?: 'bottom' | 'top' | 'right'
 }) {
+  const [hovered, setHovered] = useState(false)
   const [visible, setVisible] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!hovered) return
+    const id = setTimeout(() => setVisible(true), 500)
+    return () => clearTimeout(id)
+  }, [hovered])
 
   function show() {
-    timer.current = setTimeout(() => setVisible(true), 500)
+    setHovered(true)
   }
   function hide() {
-    if (timer.current) clearTimeout(timer.current)
+    setHovered(false)
     setVisible(false)
   }
 

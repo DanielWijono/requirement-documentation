@@ -5,13 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype running on mock data. Zustand stores only, so a reload loses all changes.
-- **Current phase:** Phase 0 → Phase 1
+- **Current phase:** Phase 1
 
 ## Next up
 
-1. Set up git and commit the current baseline (Phase 0). Right now nothing is under version control.
-2. Fix the "Discard" bug that the failing test catches (Phase 1.1).
-3. Save state to `localStorage` so the app survives a page reload (Phase 2).
+1. Fix the "Discard" bug that the failing test catches (Phase 1.1).
+2. Save state to `localStorage` so the app survives a page reload (Phase 2).
 
 ## Git rules
 
@@ -37,17 +36,17 @@ Baseline on 2026-09-23: tsc 0 errors · lint 0 errors, 18 warnings · tests 56/5
 
 ## Phase 0 — Foundations
 
-- [ ] `git init`, add a `.gitignore` check, commit the baseline, and do all later work on feature branches
+- [x] `git init`, add a `.gitignore` check, commit the baseline, and do all later work on feature branches
 - [x] Set up Vitest, jsdom and Testing Library (`vitest.config.ts`, `tests/setup.ts`, `npm test`)
 - [x] Unit tests for `contentStore` and `uiStore` (21 tests)
 - [x] UI tests for routes, shortcuts, spaces, command palette, create flow, page view, right panel and editor (36 tests)
-- [ ] Add a `check` script that runs typecheck, lint and tests in one command
-- [ ] Clear the 18 oxlint warnings:
-  - [ ] `BubbleToolbar.tsx`: components are created during render (6×). Move them to module scope.
-  - [ ] `set-state-in-effect` in `useMediaQuery`, `CreatePageModal`, `SlashMenu` and `CommandPalette`
-  - [ ] `Tooltip.tsx:34`: a ref is read during render
-  - [ ] `SlashMenu.tsx:154`: `lastGroup` is reassigned after render
-  - [ ] `only-export-components`: move the hooks and helpers out of component files (`SpaceNav`, `PageTreeItem`, `CommandPalette`, `SlashMenu`, `callout`, `expand`)
+- [x] Add a `check` script that runs typecheck, lint and tests in one command
+- [x] Clear the 18 oxlint warnings:
+  - [x] `BubbleToolbar.tsx`: components are created during render (6×). Move them to module scope.
+  - [x] `set-state-in-effect` in `useMediaQuery`, `CreatePageModal`, `SlashMenu` and `CommandPalette`
+  - [x] `Tooltip.tsx:34`: a ref is read during render
+  - [x] `SlashMenu.tsx:154`: `lastGroup` is reassigned after render
+  - [x] `only-export-components`: move the hooks and helpers out of component files (`SpaceNav`, `PageTreeItem`, `CommandPalette`, `SlashMenu`, `callout`, `expand`)
 
 ## Phase 1 — Correctness bugs
 
@@ -144,4 +143,5 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 0 done. Pushed the repo to GitHub, added `npm run check`, cleared all 18 lint warnings (lint is now at 0), and added a palette-reset test.
 - **2026-09-23:** First check of the app. Added the test setup (57 tests: 56 pass, 1 fails on the known Discard bug). Wrote this plan.
