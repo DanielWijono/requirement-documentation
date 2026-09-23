@@ -6,7 +6,7 @@ import type { PageTreeNode } from '../../types'
 import { Menu } from '../ui/Menu'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { usePageActions } from '../page/usePageActions'
-import { usePage } from '../../store/contentStore'
+import { useContentStore, usePage } from '../../store/contentStore'
 
 export function PageTreeItem({
   node,
@@ -25,6 +25,7 @@ export function PageTreeItem({
   const [expanded, setExpanded] = useState(ancestorIds.has(node.id) || depth === 0)
   const [createOpen, setCreateOpen] = useState(false)
   const actions = usePageActions(usePage(node.id))
+  const createPage = useContentStore((s) => s.createPage)
   const hasChildren = node.children.length > 0
   const isActive = node.id === activePageId
   const isDraft = node.state === 'draft'
@@ -70,8 +71,10 @@ export function PageTreeItem({
         <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 ml-1 mr-1">
           <button
             onClick={(e) => {
+              // Quick path (design.md §8.4): a blank child draft, no modal.
               e.stopPropagation()
-              setCreateOpen(true)
+              const id = createPage(spaceId, node.id)
+              navigate(`/spaces/${spaceId}/pages/${id}/edit`)
             }}
             className="w-5 h-5 flex items-center justify-center rounded-(--radius-sm) hover:bg-(--color-bg-hover)"
             aria-label="Add child page"

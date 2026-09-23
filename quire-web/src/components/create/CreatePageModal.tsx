@@ -6,21 +6,14 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { useContentStore } from '../../store/contentStore'
 import type { PageTreeNode } from '../../types'
+import { TEMPLATES, templateOutline } from '../../data/templates'
 
-interface Template {
-  id: string
-  name: string
-  description: string
-  icon: typeof FileText
-  category: 'Recent' | 'Meetings' | 'Product' | 'People'
+const ICONS: Record<string, typeof FileText> = {
+  blank: FileText,
+  'meeting-notes': MessagesSquare,
+  prd: LayoutTemplate,
+  retro: Rows3,
 }
-
-const TEMPLATES: Template[] = [
-  { id: 'blank', name: 'Blank page', description: 'Start with an empty canvas.', icon: FileText, category: 'Recent' },
-  { id: 'meeting-notes', name: 'Meeting notes', description: 'Agenda, attendees, and action items.', icon: MessagesSquare, category: 'Meetings' },
-  { id: 'prd', name: 'Product requirements', description: 'Problem, goals, scope, and success metrics.', icon: LayoutTemplate, category: 'Product' },
-  { id: 'retro', name: 'Retrospective', description: 'What went well, what didn’t, action items.', icon: Rows3, category: 'Meetings' },
-]
 
 function flattenTree(nodes: PageTreeNode[], depth = 0): { id: string; title: string; depth: number }[] {
   return nodes.flatMap((n) => [{ id: n.id, title: n.title, depth }, ...flattenTree(n.children, depth + 1)])
@@ -51,8 +44,8 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
   const flatPages = useMemo(() => flattenTree(pageTree[spaceId] ?? []), [pageTree, spaceId])
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0]
 
-  function handleCreate() {
-    const id = createPage(spaceId, parentId, template.id === 'blank' ? 'Untitled' : template.name)
+  function handleCreate(chosen = template) {
+    const id = createPage(spaceId, parentId, chosen.title, chosen.html)
     onClose()
     navigate(`/spaces/${spaceId}/pages/${id}/edit`)
   }
@@ -68,17 +61,16 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleCreate} data-autofocus>
+          <Button variant="primary" onClick={() => handleCreate()} data-autofocus>
             Create
           </Button>
         </>
       }
     >
       <div
-        className="grid gap-6"
-        style={{ gridTemplateColumns: '220px 1fr' }}
+        className="grid gap-6 md:grid-cols-[220px_1fr]"
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCreate()
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCreate(TEMPLATES[0])
         }}
       >
         <div className="flex flex-col gap-4">
@@ -122,7 +114,7 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
             {TEMPLATES.map((t) => {
-              const Icon = t.icon
+              const Icon = ICONS[t.id] ?? FileText
               const active = t.id === templateId
               return (
                 <button
@@ -141,11 +133,21 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
               )
             })}
           </div>
-          <div className="rounded-(--radius-md) border border-(--color-border-default) p-4 bg-(--color-bg-sunken)">
+          <div className="rounded-(--radius-md) border border-(--color-border-default) p-4 bg-(--color-bg-sunken)" aria-label="Template preview">
             <p className="t-ui-md-medium mb-1">{template.name}</p>
             <p className="t-ui-md text-(--color-text-secondary)">{template.description}</p>
+            {templateOutline(template).length > 0 && (
+              <ul className="mt-3 flex flex-col gap-1.5">
+                {templateOutline(template).map((h) => (
+                  <li key={h} className="t-ui-sm-medium flex items-center gap-2">
+                    <span className="w-1 h-3 rounded-sm bg-(--color-border-strong)" aria-hidden />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <p className="t-ui-sm text-(--color-text-secondary) mt-3">Press {'⌘'} Enter to create immediately.</p>
+          <p className="t-ui-sm text-(--color-text-secondary) mt-3">Press {'⌘'} Enter to create a blank page immediately.</p>
         </div>
       </div>
     </Modal>

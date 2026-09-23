@@ -2,12 +2,8 @@ import { LayoutTemplate } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { useSpace } from '../store/contentStore'
 import { NotFound } from './NotFound'
+import { TEMPLATES, templateOutline } from '../data/templates'
 
-const TEMPLATES = [
-  { name: 'Meeting notes', description: 'Agenda, attendees, and action items.' },
-  { name: 'Product requirements', description: 'Problem, goals, scope, and success metrics.' },
-  { name: 'Retrospective', description: "What went well, what didn't, action items." },
-]
 
 export function SpaceTemplates() {
   const { spaceId } = useParams()
@@ -22,10 +18,11 @@ export function SpaceTemplates() {
         </h1>
         <p className="t-ui-md text-(--color-text-secondary) mb-6">Blueprints available when creating a page in {space.name}.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {TEMPLATES.map((t) => (
+          {TEMPLATES.filter((t) => t.id !== 'blank').map((t) => (
             <div key={t.name} className="p-4 rounded-(--radius-md) border border-(--color-border-default) bg-(--color-bg-canvas)">
               <p className="t-ui-md-medium mb-1">{t.name}</p>
               <p className="t-ui-sm text-(--color-text-secondary)">{t.description}</p>
+              <p className="t-ui-sm text-(--color-text-secondary) mt-2">Sections: {templateOutline(t).join(' · ')}</p>
             </div>
           ))}
         </div>

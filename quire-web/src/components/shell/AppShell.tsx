@@ -14,7 +14,7 @@ function isTypingTarget(el: EventTarget | null) {
 }
 
 export function AppShell() {
-  const { spaceId } = useParams()
+  const { spaceId, pageId } = useParams()
   const openCommandPalette = useUIStore((s) => s.openCommandPalette)
   const toggleNav = useUIStore((s) => s.toggleNav)
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
@@ -22,6 +22,8 @@ export function AppShell() {
   const closeCreatePage = useUIStore((s) => s.closeCreatePage)
   const createOpen = useUIStore((s) => s.createPageOpen)
   const spaces = useContentStore((s) => s.spaces)
+  // New pages default to the current page's parent context, i.e. a sibling of what you are reading.
+  const currentParentId = useContentStore((s) => (pageId ? s.pages[pageId]?.parentId ?? null : null))
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -58,7 +60,7 @@ export function AppShell() {
       </div>
       <ToastHost />
       <CommandPalette />
-      <CreatePageModal open={createOpen} onClose={closeCreatePage} defaultSpaceId={spaceId ?? spaces[0]?.id ?? 'sp.eng'} />
+      <CreatePageModal open={createOpen} onClose={closeCreatePage} defaultSpaceId={spaceId ?? spaces[0]?.id ?? 'sp.eng'} defaultParentId={currentParentId} />
     </div>
   )
 }
