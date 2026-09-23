@@ -7,7 +7,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { CounterBadge } from '../ui/Lozenge'
 import { useUIStore } from '../../store/uiStore'
 import { currentUser } from '../../data/mockData'
-import { isLivePage, useContentStore } from '../../store/contentStore'
+import { isVisiblePage, useContentStore } from '../../store/contentStore'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
 
@@ -38,7 +38,7 @@ export function TopBar() {
   const spaces = useContentStore((s) => s.spaces)
   const pages = useContentStore((s) => s.pages)
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
-  const starredPages = Object.values(pages).filter((p) => p.starred && isLivePage(p))
+  const starredPages = Object.values(pages).filter((p) => p.starred && isVisiblePage(p))
 
   return (
     <header className="h-12 shrink-0 flex items-center gap-1 px-3 border-b border-(--color-border-default) bg-(--color-bg-canvas) z-(--z-nav)">
@@ -80,7 +80,7 @@ export function TopBar() {
               Recent <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Button>
           }
-          items={recentlyViewed.filter((r) => isLivePage(pages[r.pageId])).map((r) => {
+          items={recentlyViewed.filter((r) => isVisiblePage(pages[r.pageId])).map((r) => {
             const page = pages[r.pageId]
             return {
               label: page?.title ?? r.pageId,

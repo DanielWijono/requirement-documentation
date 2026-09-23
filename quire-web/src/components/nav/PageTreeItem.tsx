@@ -62,6 +62,9 @@ export function PageTreeItem({
           {node.icon ?? <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />}
         </span>
         <span className={clsx('truncate grow', isDraft && 'italic text-(--color-text-secondary)')}>{node.title}</span>
+        {node.state === 'published-unpublished-changes' && (
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 ml-1 bg-(--status-warning-bold)" role="img" aria-label="Unpublished changes" />
+        )}
         {node.restricted && <Lock className="w-3 h-3 shrink-0 ml-1 text-(--color-text-secondary)" strokeWidth={1.5} />}
 
         <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 ml-1 mr-1">

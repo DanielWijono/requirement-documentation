@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { usePage } from '../store/contentStore'
+import { canView, usePage } from '../store/contentStore'
 import { useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
 import { PageHeader } from '../components/page/PageHeader'
 import { PageContent } from '../components/page/PageContent'
 import { RightPanel } from '../components/panel/RightPanel'
 import { NotFound } from './NotFound'
+import { Forbidden } from './Forbidden'
 import { Button } from '../components/ui/Button'
 import type { Page } from '../types'
 
@@ -26,7 +27,7 @@ export function PageView() {
   const [draftViewFor, setDraftViewFor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (page) recordView(page.id, page.spaceId)
+    if (page && canView(page)) recordView(page.id, page.spaceId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page?.id])
 
@@ -42,6 +43,7 @@ export function PageView() {
   }, [page, spaceId, navigate, openRightPanel, togglePageStar])
 
   if (!page) return <NotFound />
+  if (!canView(page)) return <Forbidden page={page} />
   if (page.state === 'deleted') return <DeletedPage page={page} />
 
   const viewingDraft = draftViewFor === page.id
@@ -51,7 +53,7 @@ export function PageView() {
     <div className="flex-1 flex min-w-0">
       <div id="page-scroll-region" className="flex-1 min-w-0 overflow-y-auto">
         <PageHeader page={page} viewingDraft={viewingDraft} onToggleDraftView={() => setDraftViewFor(viewingDraft ? null : page.id)} />
-        <PageContent html={html} widthMode={page.widthMode} />
+        <PageContent html={html} widthMode={page.widthMode} archived={page.state === 'archived'} />
       </div>
       <RightPanel page={page} />
     </div>

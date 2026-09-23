@@ -409,9 +409,14 @@ function setSubtreeState(pageId: string, state: 'archived' | 'deleted') {
   })
 }
 
-/** Archived and deleted pages are hidden from lists, search and navigation menus. */
-export function isLivePage(page: Page | undefined): page is Page {
-  return !!page && page.state !== 'archived' && page.state !== 'deleted'
+/** Restricted pages are only viewable by the listed users. */
+export function canView(page: Page): boolean {
+  return !page.restricted || !page.viewerIds || page.viewerIds.includes(currentUser.id)
+}
+
+/** Pages that belong in lists, search and navigation menus: not archived, not deleted, and viewable. */
+export function isVisiblePage(page: Page | undefined): page is Page {
+  return !!page && page.state !== 'archived' && page.state !== 'deleted' && canView(page)
 }
 
 export function useSpace(spaceId: string | undefined) {

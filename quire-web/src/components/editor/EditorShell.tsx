@@ -14,7 +14,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import clsx from 'clsx'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, CloudOff, Loader2 } from 'lucide-react'
-import { usePage, useContentStore, ancestorChainIn, usePageTree, useSpace } from '../../store/contentStore'
+import { canView, usePage, useContentStore, ancestorChainIn, usePageTree, useSpace } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 import { currentUser, users } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
@@ -30,6 +30,7 @@ import { Expand } from './extensions/expand'
 import { Mention } from './extensions/mention'
 import type { WidthMode } from '../../types'
 import { NotFound } from '../../routes/NotFound'
+import { Forbidden } from '../../routes/Forbidden'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'offline' | 'error'
 
@@ -140,7 +141,9 @@ export function EditorShell() {
 
   const chain = useMemo(() => (page ? ancestorChainIn(tree, page.id).slice(0, -1) : []), [tree, page])
 
-  if (!page || !editor) return page ? null : <NotFound />
+  if (!page) return <NotFound />
+  if (!canView(page)) return <Forbidden page={page} />
+  if (!editor) return null
 
   const isNeverPublished = page.versions.length === 0
   const primaryLabel = isNeverPublished ? 'Publish' : 'Update'

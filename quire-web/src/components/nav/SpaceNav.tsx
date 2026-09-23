@@ -2,7 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import clsx from 'clsx'
-import { ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
+import { Archive, ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { usePageTree, useSpace, ancestorChainIn } from '../../store/contentStore'
 import { PageTreeItem } from './PageTreeItem'
@@ -88,6 +88,7 @@ export function SpaceNav() {
         <NavRow icon={<Home className="w-4 h-4" strokeWidth={1.5} />} label="Overview" onClick={() => navigate(`/spaces/${spaceId}`)} />
         <NavRow icon={<SquarePen className="w-4 h-4" strokeWidth={1.5} />} label="Blog" onClick={() => navigate(`/spaces/${spaceId}/blog`)} />
         <NavRow icon={<LayoutTemplate className="w-4 h-4" strokeWidth={1.5} />} label="Templates" onClick={() => navigate(`/spaces/${spaceId}/templates`)} />
+        <NavRow icon={<Archive className="w-4 h-4" strokeWidth={1.5} />} label="Archived pages" onClick={() => navigate(`/spaces/${spaceId}/archive`)} />
         <NavRow icon={<Settings className="w-4 h-4" strokeWidth={1.5} />} label="Space settings" onClick={() => navigate(`/spaces/${spaceId}/settings`)} />
       </div>
 

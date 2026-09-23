@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { FileText, Plus, Search, Sun, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { isLivePage, useContentStore } from '../../store/contentStore'
+import { isVisiblePage, useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { users } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
@@ -57,7 +57,7 @@ function CommandPaletteBody() {
 
   const results: Result[] = useMemo(() => {
     if (!query.trim()) {
-      const recents: Result[] = recentlyViewed.filter((r) => isLivePage(pages[r.pageId])).slice(0, 5).map((r) => {
+      const recents: Result[] = recentlyViewed.filter((r) => isVisiblePage(pages[r.pageId])).slice(0, 5).map((r) => {
         const p = pages[r.pageId]
         return {
           id: `recent-${r.pageId}`,
@@ -88,7 +88,7 @@ function CommandPaletteBody() {
     }
 
     const q = query.toLowerCase()
-    const pool = Object.values(pages).filter((p) => isLivePage(p) && (scope ? p.spaceId === scope : true))
+    const pool = Object.values(pages).filter((p) => isVisiblePage(p) && (scope ? p.spaceId === scope : true))
     const pageResults: Result[] = pool
       .filter((p) => p.title.toLowerCase().includes(q))
       .slice(0, 8)

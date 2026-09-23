@@ -116,7 +116,8 @@ export const pageTree: Record<string, PageTreeNode[]> = {
     { id: 'pg.onboarding-people', title: 'New hire onboarding', state: 'published', children: [] },
     { id: 'pg.benefits', title: 'Benefits', state: 'published', restricted: true, children: [] },
   ],
-  'sp.legacy': [{ id: 'pg.old-api', title: 'Old API reference', state: 'archived', children: [] }],
+  // Archived pages are hidden from the tree; they are listed in the space's archive view.
+  'sp.legacy': [],
 }
 
 const adrComments: Comment[] = [
@@ -196,6 +197,7 @@ export const pages: Record<string, Page> = {
     readTime: '6 min read',
     state: 'published-unpublished-changes',
     restricted: true,
+    viewerIds: ['u.daniel', 'u.adel', 'u.priya'],
     starred: true,
     labels: [{ name: 'architecture' }, { name: 'payments' }, { name: 'decision-record' }],
     widthMode: 'reading',
@@ -485,6 +487,7 @@ export const pages: Record<string, Page> = {
     readTime: '6 min read',
     state: 'published',
     restricted: true,
+    viewerIds: ['u.wren', 'u.priya'],
     labels: [{ name: 'confidential' }],
     widthMode: 'reading',
     wordCount: 890,

@@ -8,7 +8,7 @@ import { ancestorChainIn, useContentStore, usePageTree, useSpace } from '../../s
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
-import { RestrictedLozenge } from '../ui/Lozenge'
+import { Lozenge, RestrictedLozenge } from '../ui/Lozenge'
 import { PageStateBanner } from './PageStateBanner'
 import { ShareModal } from './ShareModal'
 import { usePageActions } from './usePageActions'
@@ -84,7 +84,10 @@ export function PageHeader({
             </div>
 
             {page.icon && <span className="text-4xl leading-none">{page.icon}</span>}
-            <h1 className="t-content-title">{page.title}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="t-content-title">{page.title}</h1>
+              {page.state === 'draft' && <Lozenge>Draft</Lozenge>}
+            </div>
 
             <div className="flex items-center gap-2 t-ui-sm text-(--color-text-secondary) flex-wrap">
               <Avatar user={userById(page.ownerId)} size={16} />

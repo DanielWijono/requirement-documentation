@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { FileText, Rocket, Star } from 'lucide-react'
-import { isLivePage, useContentStore } from '../store/contentStore'
+import { isVisiblePage, useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
 import { followingFeed, userById } from '../data/mockData'
 import { Avatar } from '../components/ui/Avatar'
@@ -13,7 +13,7 @@ export function Home() {
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
   const openCreatePage = useUIStore((s) => s.openCreatePage)
   const drafts = Object.values(pages).filter((p) => p.state === 'draft' && p.ownerId === 'u.daniel')
-  const starred = Object.values(pages).filter((p) => p.starred && isLivePage(p))
+  const starred = Object.values(pages).filter((p) => p.starred && isVisiblePage(p))
 
   const isNewUser = recentlyViewed.length === 0 && drafts.length === 0
 
@@ -45,7 +45,7 @@ export function Home() {
                 {recentlyViewed.map((r) => {
                   const page = pages[r.pageId]
                   const space = spaces.find((s) => s.id === r.spaceId)
-                  if (!isLivePage(page)) return null
+                  if (!isVisiblePage(page)) return null
                   return (
                     <button
                       key={r.pageId}
@@ -89,7 +89,7 @@ export function Home() {
                 {followingFeed.map((f) => {
                   const page = pages[f.pageId]
                   const author = userById(f.authorId)
-                  if (!isLivePage(page)) return null
+                  if (!isVisiblePage(page)) return null
                   return (
                     <button
                       key={f.pageId}

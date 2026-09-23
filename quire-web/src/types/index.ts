@@ -77,6 +77,8 @@ export interface Page {
   readTime: string
   state: PageState
   restricted: boolean
+  /** When restricted: the users allowed to view. Undefined means everyone in the space. */
+  viewerIds?: string[]
   labels: Label[]
   widthMode: WidthMode
   /** Latest working copy: equals the published body unless there are unpublished changes. */

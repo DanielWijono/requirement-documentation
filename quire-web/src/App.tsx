@@ -7,6 +7,7 @@ import { SpaceOverview } from './routes/SpaceOverview'
 import { SpaceSettings } from './routes/SpaceSettings'
 import { SpaceBlog } from './routes/SpaceBlog'
 import { SpaceTemplates } from './routes/SpaceTemplates'
+import { SpaceArchive } from './routes/SpaceArchive'
 import { PageView } from './routes/PageView'
 import { PageEdit } from './routes/PageEdit'
 import { SearchResults } from './routes/SearchResults'
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/spaces/:spaceId/blog" element={<SpaceBlog />} />
           <Route path="/spaces/:spaceId/templates" element={<SpaceTemplates />} />
           <Route path="/spaces/:spaceId/settings" element={<SpaceSettings />} />
+          <Route path="/spaces/:spaceId/archive" element={<SpaceArchive />} />
           <Route path="/spaces/:spaceId/pages/:pageId" element={<PageView />} />
           <Route path="/spaces/:spaceId/pages/:pageId/edit" element={<PageEdit />} />
           <Route path="/search" element={<SearchResults />} />
