@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6a (backend scaffold). Needs Docker Desktop installed first.
+- **Current phase:** Phase 6b (database schema).
 
 ## Next up
 
-1. **Prerequisite:** install Docker Desktop (Postgres, the test database and Mailpit run in Docker Compose). `docker` isn't on this machine yet.
-2. Phase 6a: scaffold (npm workspaces, `quire-shared`, `quire-api` health route, `compose.yaml`, test database harness).
+1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
+2. Phase 6b: Drizzle schema, first migration, dev seed.
 
 ## Git rules
 
@@ -28,9 +28,15 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 - **Never add `Co-Authored-By: Claude` (or any other AI-attribution trailer) to commit messages or PR descriptions.** Commits carry the author's identity only.
 - Run the quality gates below before every commit.
 
+## Local services
+
+- `npm run services` (repo root) starts Postgres (host port **5434**; 5432 is taken by a Homebrew Postgres), the in-memory test Postgres (**5433**) and Mailpit (**8025** inbox, **1025** SMTP).
+- API tests need the test Postgres on 5433. Override with `TEST_DATABASE_ADMIN_URL` if it lives elsewhere.
+- Fallback while Docker can't pull images: `initdb -D <dir> -U quire --auth=trust` then `pg_ctl -D <dir> -o "-p 5433 -F -c unix_socket_directories=''" start`.
+
 ## Quality gates (every change)
 
-Run these from `quire-web/`:
+Run these in every workspace (`packages/quire-shared`, `quire-api`, `quire-web`), or `npm run check` from the root. Commands shown for `quire-web/`:
 
 ```
 npx tsc -b      # typecheck: must be 0 errors
@@ -191,7 +197,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - HTML is sanitized on the server with an allowlist matching the Tiptap schema.
 
 ### Sub-phases (branch `phase-6x-<slug>` each)
-- [ ] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
+- [x] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
 - [ ] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
 - [ ] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
 - [ ] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
@@ -230,6 +236,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-23:** Phase 6a done: npm workspaces, `@quire/shared` (`relativeTime`, API error and health schemas), `quire-api` (Hono, `/api/health`, env loading with dev defaults, migration runner), `compose.yaml`, and a test harness that clones a migrated template database per worker and truncates between tests. Tests: shared 12, api 10, web 187, all passing.
 - **2026-09-23:** Phase 6 planned: self-hosted Node + Postgres backend (Hono, Drizzle, Better Auth), invite-only with email + password, users + groups permissions with view-only inheritance, Mailpit/SMTP email, co-editing later (6l), deploy last (6m).
 - **2026-09-23:** Author name changed from "Silverius Daniel Wijono" to "Daniel Wijono" on every commit (history replayed, code unchanged) and pinned in repo config.
 - **2026-09-23:** The old repository contained commits authored with the work email. It was deleted, history was replayed with `danielwijono999@gmail.com` as author and committer (code unchanged), and pushed to the new `requirement-documentation` repository. Added the commit-identity rule above.

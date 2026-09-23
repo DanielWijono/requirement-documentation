@@ -1,0 +1,57 @@
+# Local development services. Start the ones you need with `npm run services`.
+name: quire
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: quire
+      POSTGRES_PASSWORD: quire
+      POSTGRES_DB: quire
+    # 5434 on the host: 5432 is often taken by a locally installed Postgres.
+    ports: ["5434:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quire -d quire"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # Throwaway database for API tests: lives in memory and trades durability for speed.
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: quire
+      POSTGRES_PASSWORD: quire
+      POSTGRES_DB: postgres
+    ports: ["5433:5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quire"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # Catches every email the API sends. Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+  # The API in a container. Day to day, `npm run dev` runs it on the host instead.
+  api:
+    profiles: [api]
+    build:
+      context: .
+      dockerfile: quire-api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://quire:quire@postgres:5432/quire
+      WEB_ORIGIN: http://localhost:5173
+      PORT: "3000"
+    ports: ["3000:3000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,23 @@
+{
+  "name": "quire",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/quire-shared",
+    "quire-api",
+    "quire-web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w quire-api\" \"npm run dev -w quire-web\"",
+    "services": "docker compose up -d postgres postgres-test mailpit",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "coverage": "npm run coverage --workspaces",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run check --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
