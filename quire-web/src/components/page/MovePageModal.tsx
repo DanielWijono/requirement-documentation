@@ -3,7 +3,8 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { findTreeNodeIn, useContentStore, usePageTree } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
-import type { Page, PageTreeNode } from '../../types'
+import type { PageTreeNode } from '../../types'
+import type { PageRef } from './usePageActions'
 
 function flatten(nodes: PageTreeNode[], excluded: string, depth = 0): { id: string; title: string; depth: number }[] {
   // Skip the page being moved and its whole subtree: it cannot become its own ancestor.
@@ -12,11 +13,11 @@ function flatten(nodes: PageTreeNode[], excluded: string, depth = 0): { id: stri
     .flatMap((n) => [{ id: n.id, title: n.title, depth }, ...flatten(n.children, excluded, depth + 1)])
 }
 
-export function MovePageModal({ page, open, onClose }: { page: Page; open: boolean; onClose: () => void }) {
+export function MovePageModal({ page, open, onClose }: { page: PageRef; open: boolean; onClose: () => void }) {
   return open ? <MovePageModalBody page={page} onClose={onClose} /> : null
 }
 
-function MovePageModalBody({ page, onClose }: { page: Page; onClose: () => void }) {
+function MovePageModalBody({ page, onClose }: { page: PageRef; onClose: () => void }) {
   const tree = usePageTree(page.spaceId)
   const movePage = useContentStore((s) => s.movePage)
   const pushToast = useUIStore((s) => s.pushToast)

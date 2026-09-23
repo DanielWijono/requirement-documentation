@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { MenuItemSpec } from '../ui/Menu'
 import { ConfirmModal } from '../ui/ConfirmModal'
 import { MovePageModal } from './MovePageModal'
-import { useContentStore } from '../../store/contentStore'
+import { useContentStore, useDerived } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 import type { Page } from '../../types'
 
@@ -15,7 +15,14 @@ export function pageUrl(page: Pick<Page, 'id' | 'spaceId'>) {
  * Page-level actions shared by the page header and the page tree menus.
  * Returns the menu items plus the dialogs they open; render `dialogs` next to the menu.
  */
-export function usePageActions(page: Page | undefined) {
+export type PageRef = Pick<Page, 'id' | 'spaceId' | 'parentId' | 'title'>
+
+export function usePageActions(pageId: string) {
+  // Only the fields the actions need, so autosaves of the page body don't re-render tree rows.
+  const page = useDerived((s): PageRef | null => {
+    const p = s.pages[pageId]
+    return p ? { id: p.id, spaceId: p.spaceId, parentId: p.parentId, title: p.title } : null
+  })
   const navigate = useNavigate()
   const copyPage = useContentStore((s) => s.copyPage)
   const archivePage = useContentStore((s) => s.archivePage)

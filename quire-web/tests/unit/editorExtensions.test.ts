@@ -3,7 +3,8 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import { EditorShortcuts } from '../../src/components/editor/extensions/editorShortcuts'
-import { SmartLinks, parsePageUrl } from '../../src/components/editor/extensions/smartLinks'
+import { SmartLinks } from '../../src/components/editor/extensions/smartLinks'
+import { parsePageUrl } from '../../src/lib/pageUrl'
 
 let editor: Editor | null = null
 afterEach(() => editor?.destroy())

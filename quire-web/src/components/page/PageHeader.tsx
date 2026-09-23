@@ -131,7 +131,7 @@ function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const togglePageStar = useContentStore((s) => s.togglePageStar)
-  const actions = usePageActions(page)
+  const actions = usePageActions(page.id)
 
   return (
     <>

@@ -7,7 +7,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { CounterBadge } from '../ui/Lozenge'
 import { useUIStore } from '../../store/uiStore'
 import { currentUser } from '../../data/mockData'
-import { isVisiblePage, useContentStore } from '../../store/contentStore'
+import { isVisiblePage, useContentStore, useDerived } from '../../store/contentStore'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
 
@@ -36,9 +36,15 @@ export function TopBar() {
     return () => document.removeEventListener('keydown', handler)
   }, [])
   const spaces = useContentStore((s) => s.spaces)
-  const pages = useContentStore((s) => s.pages)
-  const recentlyViewed = useContentStore((s) => s.recentlyViewed)
-  const starredPages = Object.values(pages).filter((p) => p.starred && isVisiblePage(p))
+  // Only what the menus show, so autosaves and unrelated edits don't re-render the top bar.
+  const starredPages = useDerived((s) =>
+    Object.values(s.pages)
+      .filter((p) => p.starred && isVisiblePage(p))
+      .map((p) => ({ id: p.id, spaceId: p.spaceId, title: p.title })),
+  )
+  const recentPages = useDerived((s) =>
+    s.recentlyViewed.filter((r) => isVisiblePage(s.pages[r.pageId])).map((r) => ({ ...r, title: s.pages[r.pageId].title })),
+  )
 
   return (
     <header className="h-12 shrink-0 flex items-center gap-1 px-3 border-b border-(--color-border-default) bg-(--color-bg-canvas) z-(--z-nav)">
@@ -80,13 +86,10 @@ export function TopBar() {
               Recent <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Button>
           }
-          items={recentlyViewed.filter((r) => isVisiblePage(pages[r.pageId])).map((r) => {
-            const page = pages[r.pageId]
-            return {
-              label: page?.title ?? r.pageId,
-              onSelect: () => navigate(`/spaces/${r.spaceId}/pages/${r.pageId}`),
-            }
-          })}
+          items={recentPages.map((r) => ({
+            label: r.title,
+            onSelect: () => navigate(`/spaces/${r.spaceId}/pages/${r.pageId}`),
+          }))}
         />
         <Menu
           trigger={

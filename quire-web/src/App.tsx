@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell/AppShell'
 import { Home } from './routes/Home'
@@ -9,10 +9,13 @@ import { SpaceBlog } from './routes/SpaceBlog'
 import { SpaceTemplates } from './routes/SpaceTemplates'
 import { SpaceArchive } from './routes/SpaceArchive'
 import { PageView } from './routes/PageView'
-import { PageEdit } from './routes/PageEdit'
 import { SearchResults } from './routes/SearchResults'
 import { NotFound } from './routes/NotFound'
 import { useUIStore } from './store/uiStore'
+import { PageSkeleton } from './components/ui/Skeleton'
+
+// The editor (Tiptap + ProseMirror) is most of the bundle and only needed in write mode.
+const PageEdit = lazy(() => import('./routes/PageEdit').then((m) => ({ default: m.PageEdit })))
 
 function useAppearanceEffects() {
   const theme = useUIStore((s) => s.theme)
@@ -49,7 +52,14 @@ export default function App() {
           <Route path="/spaces/:spaceId/settings" element={<SpaceSettings />} />
           <Route path="/spaces/:spaceId/archive" element={<SpaceArchive />} />
           <Route path="/spaces/:spaceId/pages/:pageId" element={<PageView />} />
-          <Route path="/spaces/:spaceId/pages/:pageId/edit" element={<PageEdit />} />
+          <Route
+            path="/spaces/:spaceId/pages/:pageId/edit"
+            element={
+              <Suspense fallback={<PageSkeleton />}>
+                <PageEdit />
+              </Suspense>
+            }
+          />
           <Route path="/search" element={<SearchResults />} />
           <Route path="*" element={<NotFound />} />
         </Route>

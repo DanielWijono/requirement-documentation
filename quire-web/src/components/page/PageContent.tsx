@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import type { Comment, WidthMode } from '../../types'
-import { parsePageUrl } from '../editor/extensions/smartLinks'
+import { parsePageUrl } from '../../lib/pageUrl'
 import { LinkPreviewCard } from './LinkPreviewCard'
 
 const WIDTH_CLASS: Record<WidthMode, string> = {

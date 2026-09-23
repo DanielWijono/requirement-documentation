@@ -5,11 +5,11 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 5
+- **Current phase:** Phase 6 (blocked on a decision)
 
 ## Next up
 
-1. Performance (Phase 5).
+1. **Owner decision:** stay local-only, or build the backend (Phase 6)? Everything else in this plan is done.
 
 ## Git rules
 
@@ -30,7 +30,8 @@ npm run coverage  # coverage must stay above the thresholds in vitest.config.ts
 npm run build   # must succeed
 ```
 
-Baseline on 2026-09-23: tsc 0 errors · lint 0 errors, 18 warnings · tests 56/57 passing · build OK (JS bundle 858 kB, 261 kB gzipped).
+Baseline on 2026-09-23 (start): tsc 0 errors · lint 0 errors, 18 warnings · tests 56/57 passing · build OK (JS bundle 858 kB, 261 kB gzipped).
+After Phase 5: tsc 0 errors · lint 0 warnings · tests 187/187 passing · coverage 95% lines · build OK (initial JS 402 kB / 120 kB gzipped, editor chunk 492 kB loaded on demand).
 
 ---
 
@@ -134,8 +135,13 @@ Items from `design.md` that were missing or partial.
 
 ## Phase 5 — Performance
 
-- [ ] Lazy-load the editor route (`React.lazy` on `PageEdit`) so Tiptap is kept out of the first load. The bundle is 858 kB now; the target is under 500 kB.
-- [ ] Check for unnecessary re-renders from broad store subscriptions such as `s.pages` in `Home` and `TopBar`
+- [x] Lazy-load the editor route (`React.lazy` on `PageEdit`, with `PageSkeleton` as the fallback). The initial JS bundle went from 893 kB (273 kB gzipped) to **402 kB (120 kB gzipped)**. The editor loads as its own 492 kB chunk only on `/edit`, and the >500 kB build warning is gone. This required moving `parsePageUrl` to `src/lib/pageUrl.ts` so read mode doesn't import Tiptap.
+- [x] Check for unnecessary re-renders from broad store subscriptions. Findings and fixes:
+  - Every autosave (~700 ms while typing) rebuilt the whole page tree, re-rendering the nav and every row. Tree patches are now skipped when the state, title or restriction is unchanged.
+  - `TopBar` subscribed to all pages. It now uses `useDerived` (compared by value) for just the starred and recent entries.
+  - Tree rows subscribed to their whole page object. `usePageActions` now takes a page id and subscribes to four fields.
+  - Verified with React Profiler render counts (`tests/unit/renders.test.tsx`): autosaves cause 0 commits in `SpaceNav` and `TopBar`.
+  - Left as is: `Home`, `SearchResults`, `SpaceOverview`, `SpaceArchive`, `SpaceSettings` and the Share dialog subscribe to all pages, but none of them are mounted while someone is editing, so their data only changes through their own actions.
 
 ## Phase 6 — Backend (optional, needs a decision)
 
@@ -161,6 +167,7 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 5 done: the lazy editor route cut the initial bundle by 55%, and autosave no longer re-renders the nav or top bar (verified with render counts). Tests: 187, all passing.
 - **2026-09-23:** Phase 4 done: component tests for the editor chrome and the Share dialog, enforced coverage (95% of lines), and an axe scan of 14 screens. Fixed stale toolbar state, the Share dialog not saving, and two axe findings. Tests: 183, all passing. Playwright E2E deferred per the owner's instruction.
 - **2026-09-23:** Phase 3 done: the page state model, create flow, version diff, search, space screens, editor keyboard and smart links, comment anchors, link previews, and accessibility (skip links, tree keyboard, focus return). Tests: 155, all passing.
 - **2026-09-23:** Phase 2 done. Content and UI preferences are saved in `localStorage` with a versioned schema and migration, plus a dev-only reset. Tests: 87, all passing.

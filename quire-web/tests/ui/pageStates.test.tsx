@@ -62,9 +62,9 @@ describe('403 vs 404', () => {
     expect(screen.getByRole('button', { name: 'Access requested' })).toBeDisabled()
   })
 
-  it('the editor route is also forbidden, and the view is not recorded', () => {
+  it('the editor route is also forbidden, and the view is not recorded', async () => {
     renderApp('/spaces/sp.people/pages/pg.benefits/edit')
-    expect(screen.getByRole('heading', { name: /don’t have permission/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /don’t have permission/ })).toBeInTheDocument()
     expect(content().recentlyViewed.some((r) => r.pageId === 'pg.benefits')).toBe(false)
   })
 
@@ -82,5 +82,12 @@ describe('403 vs 404', () => {
     const { user } = renderApp('/search')
     await user.type(screen.getByPlaceholderText('Search this site'), 'Benefits')
     expect(screen.queryByRole('button', { name: /^Benefits/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('lazy editor route', () => {
+  it('resolves the editor through lazy loading', async () => {
+    renderApp('/spaces/sp.eng/pages/pg.onboarding/edit')
+    expect(await screen.findByPlaceholderText('Give this page a title')).toBeInTheDocument()
   })
 })

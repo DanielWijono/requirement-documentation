@@ -61,9 +61,9 @@ describe('ShareModal (design.md §8.7)', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
   })
 
-  it('the editor route shows a 403 for view-only users', () => {
+  it('the editor route shows a 403 for view-only users', async () => {
     content().updatePageMeta('pg.onboarding', { restricted: true, viewerIds: undefined, editorIds: ['u.priya'] })
     renderApp('/spaces/sp.eng/pages/pg.onboarding/edit')
-    expect(screen.getByRole('heading', { name: 'You don’t have permission to edit this page' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'You don’t have permission to edit this page' })).toBeInTheDocument()
   })
 })

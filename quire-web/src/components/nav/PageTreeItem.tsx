@@ -6,7 +6,7 @@ import type { PageTreeNode } from '../../types'
 import { Menu } from '../ui/Menu'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { usePageActions } from '../page/usePageActions'
-import { useContentStore, usePage } from '../../store/contentStore'
+import { useContentStore } from '../../store/contentStore'
 
 export function PageTreeItem({
   node,
@@ -28,7 +28,7 @@ export function PageTreeItem({
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(ancestorIds.has(node.id) || depth === 0)
   const [createOpen, setCreateOpen] = useState(false)
-  const actions = usePageActions(usePage(node.id))
+  const actions = usePageActions(node.id)
   const createPage = useContentStore((s) => s.createPage)
   const hasChildren = node.children.length > 0
   const isActive = node.id === activePageId

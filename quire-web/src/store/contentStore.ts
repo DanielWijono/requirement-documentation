@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Comment, Page, PageState, PageTreeNode, Space, SpacePermission } from '../types'
@@ -284,7 +285,11 @@ export const useContentStore = create<ContentState>()(
       }
       return {
         pages: { ...s.pages, [pageId]: updated },
-        pageTree: { ...s.pageTree, [page.spaceId]: patchNodeState(s.pageTree[page.spaceId] ?? [], pageId, nextState) },
+        // Autosave runs every few hundred ms; only touch the tree when the visible state changes.
+        pageTree:
+          nextState === page.state
+            ? s.pageTree
+            : { ...s.pageTree, [page.spaceId]: patchNodeState(s.pageTree[page.spaceId] ?? [], pageId, nextState) },
       }
     }),
 
@@ -304,8 +309,8 @@ export const useContentStore = create<ContentState>()(
       if (!page) return s
       // Keep the fields the tree mirrors in sync.
       const nodePatch: Partial<PageTreeNode> = {}
-      if (patch.title !== undefined) nodePatch.title = patch.title
-      if (patch.restricted !== undefined) nodePatch.restricted = patch.restricted
+      if (patch.title !== undefined && patch.title !== page.title) nodePatch.title = patch.title
+      if (patch.restricted !== undefined && patch.restricted !== page.restricted) nodePatch.restricted = patch.restricted
       return {
         pages: { ...s.pages, [pageId]: { ...page, ...patch } },
         pageTree: Object.keys(nodePatch).length
@@ -473,6 +478,15 @@ export function canEdit(page: Page): boolean {
 /** Pages that belong in lists, search and navigation menus: not archived, not deleted, and viewable. */
 export function isVisiblePage(page: Page | undefined): page is Page {
   return !!page && page.state !== 'archived' && page.state !== 'deleted' && canView(page)
+}
+
+/**
+ * Subscribe to a small piece of derived data (plain JSON) without re-rendering when unrelated
+ * content changes: the selector's result is compared by value, not by reference.
+ */
+export function useDerived<T>(selector: (s: ContentState) => T): T {
+  const json = useContentStore((s) => JSON.stringify(selector(s)))
+  return useMemo(() => JSON.parse(json) as T, [json])
 }
 
 export function useSpace(spaceId: string | undefined) {
