@@ -104,7 +104,7 @@ function CommandPaletteBody() {
       .map((s) => ({ id: `s-${s.id}`, kind: 'space', title: s.name, subtitle: s.key, onSelect: () => navigate(`/spaces/${s.id}`) }))
     const peopleResults: Result[] = users
       .filter((u) => u.name.toLowerCase().includes(q))
-      .map((u) => ({ id: `u-${u.id}`, kind: 'person', title: u.name, onSelect: () => navigate('/search') }))
+      .map((u) => ({ id: `u-${u.id}`, kind: 'person', title: u.name, onSelect: () => navigate(`/search?contributor=${u.id}`) }))
     return [...pageResults, ...spaceResults, ...peopleResults]
   }, [query, scope, pages, spaces, recentlyViewed, navigate, setTheme, theme, openCreatePage])
 
@@ -180,7 +180,7 @@ function CommandPaletteBody() {
         {query && (
           <button
             onClick={() => {
-              navigate('/search')
+              navigate(`/search?q=${encodeURIComponent(query)}`)
               close()
             }}
             className="t-ui-sm-medium text-(--color-text-link) text-left px-4 h-9 border-t border-(--color-border-default) shrink-0"
