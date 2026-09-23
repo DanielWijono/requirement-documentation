@@ -10,7 +10,10 @@
     "lint": "oxlint",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "check": "tsc --noEmit && oxlint && vitest run"
+    "check": "tsc --noEmit && oxlint && vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "db:seed": "tsx src/cli/seed.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6b (database schema).
+- **Current phase:** Phase 6c (auth, invites, email).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6b: Drizzle schema, first migration, dev seed.
+2. Phase 6c: Better Auth, invites, password reset email, `bootstrap-admin`, users and groups admin.
 
 ## Git rules
 
@@ -166,7 +166,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 ### Decisions
 - **Stack:** Node + Postgres 16. Hono (API), Drizzle ORM + drizzle-kit migrations, Better Auth. Docker Compose locally now; the same compose file later runs on a VPS behind Caddy.
   - Chosen over hosted Supabase and Firebase: no lock-in, fixed cost, Postgres full-text search, and the later Yjs co-editing server runs on the same box.
-- **Layout:** npm workspaces at the repo root with `packages/quire-shared` (zod schemas, types, `evaluateAccess`, `relativeTime`), `quire-api/` and `quire-web/`.
+- **Layout:** npm workspaces at the repo root with `packages/quire-shared` (zod schemas, types, seed data at `@quire/shared/seed`, `evaluateAccess`, `relativeTime`), `quire-api/` and `quire-web/`.
 - **Accounts:** one workspace, invite-only, email + password.
 - **Email:** Mailpit in dev (a fake inbox at `localhost:8025`); any SMTP provider in production via `SMTP_*` env vars.
 - **Permissions:** users + groups, enforced by the API only.
@@ -192,13 +192,14 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - Auth: Better Auth `user` (+ `color_seed`, `site_role`, `deactivated_at`), `session`, `account`, `verification`; `invites`; `groups`, `group_members`.
 - Spaces: `spaces` (`key citext` unique), `space_permissions` (principal type/id, `perms[]`).
 - Pages: `pages` (`parent_id`, fractional `position`, `status`, `published_version`, `lock_version`, `body_text`, generated `search tsvector` with GIN, trigram index on title), `page_drafts` (`rev`), `page_versions`, `page_restrictions`, `page_collaborators`.
-- Other: `comments` (one reply level, enforced by trigger), `page_labels`, and per-user `stars`, `watches`, `recent_views`.
+- Other: `comments` (one reply level, enforced by trigger), `page_labels`, and per-user `space_stars`, `page_stars`, `space_watches`, `page_watches`, `recent_views` (separate tables so every row has a real foreign key).
+- As built in 6b: space keys are stored upper case with a format check instead of `citext`; invite emails are stored lower case; triggers also keep a page's parent in the same space and reject tree cycles; the home "following" feed is derived from `page_versions`, so it has no table.
 - Timestamps are ISO dates; the client formats them.
 - HTML is sanitized on the server with an allowlist matching the Tiptap schema.
 
 ### Sub-phases (branch `phase-6x-<slug>` each)
 - [x] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
-- [ ] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
+- [x] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
 - [ ] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
 - [ ] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
 - [ ] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
@@ -236,6 +237,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-23:** Phase 6b done: Drizzle schema (21 tables) in three migrations (pg_trgm, schema, integrity triggers for reply depth, tree cycles and cross-space parents); `db:migrate` and `db:seed` (idempotent, refuses production); seed data and domain types moved to `@quire/shared` (the web app re-exports them unchanged). Tests: api 43, all passing.
 - **2026-09-23:** Phase 6a done: npm workspaces, `@quire/shared` (`relativeTime`, API error and health schemas), `quire-api` (Hono, `/api/health`, env loading with dev defaults, migration runner), `compose.yaml`, and a test harness that clones a migrated template database per worker and truncates between tests. Tests: shared 12, api 10, web 187, all passing.
 - **2026-09-23:** Phase 6 planned: self-hosted Node + Postgres backend (Hono, Drizzle, Better Auth), invite-only with email + password, users + groups permissions with view-only inheritance, Mailpit/SMTP email, co-editing later (6l), deploy last (6m).
 - **2026-09-23:** Author name changed from "Silverius Daniel Wijono" to "Daniel Wijono" on every commit (history replayed, code unchanged) and pinned in repo config.

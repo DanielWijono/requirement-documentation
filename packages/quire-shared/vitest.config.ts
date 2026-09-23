@@ -6,6 +6,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
+      // Plain data and type declarations: nothing to execute.
+      exclude: ['src/seed.ts', 'src/types.ts'],
       reporter: ['text-summary'],
       thresholds: { statements: 95, branches: 90, functions: 95, lines: 95 },
     },
