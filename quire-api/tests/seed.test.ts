@@ -82,3 +82,11 @@ describe('labelToDate', () => {
 })
 
 it('seedEmail derives a local address from the name', () => expect(seedEmail('Priya')).toBe('priya@quire.local'))
+
+it('lets every seeded person sign in with the dev password', async () => {
+  const { client, testApp } = await import('./helpers/app.ts')
+  const { SEED_PASSWORD } = await import('../src/db/seed.ts')
+  await seed(db(), { now })
+  const res = await client(testApp()).post('/api/auth/sign-in/email', { email: seedEmail('Priya'), password: SEED_PASSWORD })
+  expect(res.status).toBe(200)
+})

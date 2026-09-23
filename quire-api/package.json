@@ -13,19 +13,23 @@
     "check": "tsc --noEmit && oxlint && vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/cli/migrate.ts",
-    "db:seed": "tsx src/cli/seed.ts"
+    "db:seed": "tsx src/cli/seed.ts",
+    "bootstrap-admin": "tsx src/cli/bootstrap-admin.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
     "@quire/shared": "*",
+    "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.8",
+    "nodemailer": "^10.0.10",
     "postgres": "^3.4.9",
     "tsx": "^4.23.15",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
+    "@types/nodemailer": "^8.0.2",
     "@vitest/coverage-v8": "^3.2.7",
     "drizzle-kit": "^0.31.11",
     "oxlint": "^1.81.0",

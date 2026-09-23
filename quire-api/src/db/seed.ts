@@ -1,12 +1,15 @@
 import type { Page, PageTreeNode } from '@quire/shared'
 import { pageTree, pages, recentlyViewedSeed, spaces, users } from '@quire/shared/seed'
+import { hashPassword } from 'better-auth/crypto'
 import { countWords, htmlToText } from '../lib/html.ts'
 import type { Db } from './client.ts'
 import * as t from './schema.ts'
 
 export const SEED_ADMIN_ID = 'u.daniel'
-export const MEMBERS_GROUP_ID = 'group.members'
+import { MEMBERS_GROUP_ID } from '@quire/shared'
 export const MEMBER_DEFAULT_PERMS = ['View', 'Add', 'Edit', 'Comment'] as const
+/** Every seeded person signs in with this password. Development only. */
+export const SEED_PASSWORD = 'quire-dev-password'
 export const ALL_PERMS = ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin'] as const
 
 const UNIT_MS: Record<string, number> = {
@@ -56,6 +59,7 @@ export interface SeedOptions {
 export async function seed(db: Db, { now = new Date(), nodeEnv = process.env.NODE_ENV }: SeedOptions = {}) {
   if (nodeEnv === 'production') throw new Error('Refusing to seed a production database.')
   const at = (label: string) => labelToDate(label, now)
+  const passwordHash = await hashPassword(SEED_PASSWORD)
 
   await db.transaction(async (tx) => {
     await tx
@@ -70,6 +74,11 @@ export async function seed(db: Db, { now = new Date(), nodeEnv = process.env.NOD
           siteRole: u.id === SEED_ADMIN_ID ? ('admin' as const) : ('member' as const),
         })),
       )
+      .onConflictDoNothing()
+
+    await tx
+      .insert(t.account)
+      .values(users.map((u) => ({ id: `acc.${u.id}`, accountId: u.id, providerId: 'credential', userId: u.id, password: passwordHash })))
       .onConflictDoNothing()
 
     await tx

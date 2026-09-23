@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6c (auth, invites, email).
+- **Current phase:** Phase 6d (authorization and spaces).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6c: Better Auth, invites, password reset email, `bootstrap-admin`, users and groups admin.
+2. Phase 6d: `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars and watches.
 
 ## Git rules
 
@@ -32,6 +32,7 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - `npm run services` (repo root) starts Postgres (host port **5434**; 5432 is taken by a Homebrew Postgres), the in-memory test Postgres (**5433**) and Mailpit (**8025** inbox, **1025** SMTP).
 - API tests need the test Postgres on 5433. Override with `TEST_DATABASE_ADMIN_URL` if it lives elsewhere.
+- Mailpit fallback: the release binary runs without installing (`mailpit --smtp 127.0.0.1:1025 --listen 127.0.0.1:8025`).
 - Fallback while Docker can't pull images: `initdb -D <dir> -U quire --auth=trust` then `pg_ctl -D <dir> -o "-p 5433 -F -c unix_socket_directories=''" start`.
 
 ## Quality gates (every change)
@@ -200,7 +201,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 ### Sub-phases (branch `phase-6x-<slug>` each)
 - [x] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
 - [x] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
-- [ ] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
+- [x] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
 - [ ] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
 - [ ] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
 - [ ] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
@@ -237,6 +238,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-23:** Phase 6c done: Better Auth (email + password, sign-up disabled, httpOnly SameSite=Lax cookies, rate limits on sign-in and reset, deactivated users blocked), invites (hashed single-use tokens, 7-day expiry, email via SMTP), password reset email, `bootstrap-admin` CLI, `/me`, users admin (roles, deactivation ends sessions), groups CRUD with a protected system group, Origin check on writes. Seeded people sign in with `quire-dev-password`. Tests: api 71 (invite and reset flows read the real Mailpit inbox), shared 19.
 - **2026-09-23:** Phase 6b done: Drizzle schema (21 tables) in three migrations (pg_trgm, schema, integrity triggers for reply depth, tree cycles and cross-space parents); `db:migrate` and `db:seed` (idempotent, refuses production); seed data and domain types moved to `@quire/shared` (the web app re-exports them unchanged). Tests: api 43, all passing.
 - **2026-09-23:** Phase 6a done: npm workspaces, `@quire/shared` (`relativeTime`, API error and health schemas), `quire-api` (Hono, `/api/health`, env loading with dev defaults, migration runner), `compose.yaml`, and a test harness that clones a migrated template database per worker and truncates between tests. Tests: shared 12, api 10, web 187, all passing.
 - **2026-09-23:** Phase 6 planned: self-hosted Node + Postgres backend (Hono, Drizzle, Better Auth), invite-only with email + password, users + groups permissions with view-only inheritance, Mailpit/SMTP email, co-editing later (6l), deploy last (6m).
