@@ -82,6 +82,17 @@ describe('routing & shell', () => {
   })
 })
 
+describe('demo data reset', () => {
+  it('account menu "Reset demo data" restores seed content (dev only)', async () => {
+    useContentStore.getState().deletePage('pg.handbook')
+    const { user } = renderApp('/spaces/sp.eng')
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Reset demo data' }))
+    expect(window.location.pathname).toBe('/')
+    expect(useContentStore.getState().pages['pg.handbook'].state).toBe('published')
+  })
+})
+
 describe('global keyboard shortcuts', () => {
   it('Cmd+K and "/" open the command palette; Escape closes it', async () => {
     const { user } = renderApp('/')

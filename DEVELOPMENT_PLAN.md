@@ -4,13 +4,12 @@ Tracks work on `quire-web/` against the spec in [design.md](design.md).
 Update the checkboxes as work lands, and add new findings to the right phase instead of starting a new file.
 
 - **Last updated:** 2026-09-23
-- **Status:** Frontend prototype running on mock data. Zustand stores only, so a reload loses all changes.
-- **Current phase:** Phase 2
+- **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
+- **Current phase:** Phase 3
 
 ## Next up
 
-1. Save state to `localStorage` so the app survives a page reload (Phase 2).
-2. Close the design-spec gaps (Phase 3).
+1. Close the design-spec gaps (Phase 3).
 
 ## Git rules
 
@@ -68,10 +67,10 @@ These are bugs in features that already exist. Each fix gets a test that fails b
 
 ## Phase 2 — Persistence
 
-- [ ] Save `contentStore` (and the UI preferences theme, density, reading font and nav width) to `localStorage` with Zustand `persist`, and include a schema version for future migrations
-- [ ] Reset-to-seed action (dev only) for demos
-- [ ] Tests: data survives a store reload, and old schema versions migrate
-- [ ] **Decision needed:** stay local-only, or add a backend (see Phase 6)?
+- [x] Save `contentStore` (and the UI preferences theme, density, reading font and nav width) to `localStorage` with Zustand `persist`, and include a schema version for future migrations. Keys: `quire.content` (schema v1, with a v0→v1 migration) and `quire.ui`. The id counter advances past saved ids after loading.
+- [x] Reset-to-seed action (dev only) for demos: Account menu → "Reset demo data"
+- [x] Tests: data survives a store reload, and old schema versions migrate (`tests/unit/persistence.test.ts`)
+- [ ] **Decision needed (owner):** stay local-only, or add a backend (see Phase 6)? Still open, and it blocks Phase 6.
 
 ## Phase 3 — Gaps against the design spec
 
@@ -150,6 +149,7 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 2 done. Content and UI preferences are saved in `localStorage` with a versioned schema and migration, plus a dev-only reset. Tests: 87, all passing.
 - **2026-09-23:** Phase 1 done. Discard now reverts; replies are saved; restoring a version restores its content; all page and tree menu actions work (Copy link, Move, Copy, Archive with Undo, Delete with confirmation and a restorable Trash screen); the Create dialog is shared by the shell. Also fixed 1.7 to 1.10, found along the way. Tests: 81, all passing.
 - **2026-09-23:** Phase 0 done. Pushed the repo to GitHub, added `npm run check`, cleared all 18 lint warnings (lint is now at 0), and added a palette-reset test.
 - **2026-09-23:** First check of the app. Added the test setup (57 tests: 56 pass, 1 fails on the known Discard bug). Wrote this plan.

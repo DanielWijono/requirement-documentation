@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Comment, Page, PageState, PageTreeNode, Space } from '../types'
 import { currentUser, pageTree as pageTreeSeed, pages as pagesSeed, recentlyViewedSeed, spaces as spacesSeed } from '../data/mockData'
 
@@ -31,7 +32,14 @@ interface ContentState {
   archivePage: (pageId: string) => void
   restorePage: (pageId: string) => void
   deletePage: (pageId: string) => void
+  resetToSeed: () => void
 }
+
+type ContentData = Pick<ContentState, 'spaces' | 'pages' | 'pageTree' | 'recentlyViewed'>
+
+export const CONTENT_STORAGE_KEY = 'quire.content'
+/** Bump when the persisted shape changes, and add a step to `migrateContent`. */
+export const CONTENT_SCHEMA_VERSION = 1
 
 function cloneSeed<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -85,11 +93,43 @@ function collectIds(node: PageTreeNode): string[] {
 
 let nextId = 1000
 
-export const useContentStore = create<ContentState>((set, get) => ({
-  spaces: cloneSeed(spacesSeed),
-  pages: normalizePages(cloneSeed(pagesSeed)),
-  pageTree: cloneSeed(pageTreeSeed),
-  recentlyViewed: cloneSeed(recentlyViewedSeed),
+function seedData(): ContentData {
+  return {
+    spaces: cloneSeed(spacesSeed),
+    pages: normalizePages(cloneSeed(pagesSeed)),
+    pageTree: cloneSeed(pageTreeSeed),
+    recentlyViewed: cloneSeed(recentlyViewedSeed),
+  }
+}
+
+/** Keep generated ids unique after loading saved data: move the counter past every numeric suffix in use. */
+function bumpIdCounter(data: Pick<ContentData, 'spaces' | 'pages'>) {
+  const ids = [
+    ...data.spaces.map((s) => s.id),
+    ...Object.values(data.pages).flatMap((p) => [p.id, ...p.comments.flatMap((c) => [c.id, ...(c.replies ?? []).map((r) => r.id)])]),
+  ]
+  for (const id of ids) {
+    const n = Number(/-(\d+)$/.exec(id)?.[1])
+    if (Number.isFinite(n) && n >= nextId) nextId = n + 1
+  }
+}
+
+/** Upgrade persisted data from older schema versions. */
+export function migrateContent(persisted: unknown, version: number): ContentData {
+  const data = persisted as ContentData
+  if (version < 1) {
+    // v0 had no published body or version snapshots.
+    return { ...data, pages: normalizePages(data.pages) }
+  }
+  return data
+}
+
+export const useContentStore = create<ContentState>()(
+  persist(
+    (set, get) => ({
+  ...seedData(),
+
+  resetToSeed: () => set(seedData()),
 
   toggleSpaceStar: (spaceId) =>
     set((s) => ({
@@ -341,7 +381,19 @@ export const useContentStore = create<ContentState>((set, get) => ({
         pageTree: { ...s.pageTree, [page.spaceId]: insertNode(tree, parentId, node) },
       }
     }),
-}))
+    }),
+    {
+      name: CONTENT_STORAGE_KEY,
+      version: CONTENT_SCHEMA_VERSION,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s): ContentData => ({ spaces: s.spaces, pages: s.pages, pageTree: s.pageTree, recentlyViewed: s.recentlyViewed }),
+      migrate: migrateContent,
+      onRehydrateStorage: () => (state) => {
+        if (state) bumpIdCounter(state)
+      },
+    },
+  ),
+)
 
 /** Archive or delete a page together with everything below it, and drop the subtree from the nav. */
 function setSubtreeState(pageId: string, state: 'archived' | 'deleted') {

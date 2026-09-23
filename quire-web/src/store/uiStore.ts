@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Density, ReadingFont, ThemePref } from '../types'
 
 export type RightPanelTab = 'comments' | 'details' | 'history'
@@ -45,7 +46,11 @@ interface UIState {
 
 const startsWithNavCollapsed = typeof window !== 'undefined' && window.matchMedia('(max-width: 959px)').matches
 
-export const useUIStore = create<UIState>((set, get) => ({
+export const UI_STORAGE_KEY = 'quire.ui'
+
+export const useUIStore = create<UIState>()(
+  persist(
+    (set, get) => ({
   theme: 'system',
   density: 'comfortable',
   readingFont: 'serif',
@@ -80,4 +85,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPendingCommentAnchor: (text) => set({ pendingCommentAnchor: text }),
-}))
+    }),
+    {
+      name: UI_STORAGE_KEY,
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      // Only preferences survive a reload; panels, dialogs and toasts are session state.
+      partialize: (s) => ({ theme: s.theme, density: s.density, readingFont: s.readingFont, navWidth: s.navWidth }),
+    },
+  ),
+)

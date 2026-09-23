@@ -23,6 +23,7 @@ const initialContent = useContentStore.getState()
 const initialUI = useUIStore.getState()
 
 beforeEach(() => {
+  localStorage.clear()
   useContentStore.setState(initialContent, true)
   useUIStore.setState(initialUI, true)
   window.history.pushState({}, '', '/')

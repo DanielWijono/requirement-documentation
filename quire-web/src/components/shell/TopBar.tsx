@@ -22,6 +22,8 @@ export function TopBar() {
   const readingFont = useUIStore((s) => s.readingFont)
   const setReadingFont = useUIStore((s) => s.setReadingFont)
   const openCreatePage = useUIStore((s) => s.openCreatePage)
+  const pushToast = useUIStore((s) => s.pushToast)
+  const resetToSeed = useContentStore((s) => s.resetToSeed)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => {
@@ -159,6 +161,19 @@ export function TopBar() {
             { label: `Reading font: ${readingFont === 'serif' ? 'Serif' : 'Sans'}`, onSelect: () => setReadingFont(readingFont === 'serif' ? 'sans' : 'serif') },
             { label: '', divider: true },
             { label: 'Settings' },
+            ...(import.meta.env.DEV
+              ? [
+                  {
+                    label: 'Reset demo data',
+                    destructive: true,
+                    onSelect: () => {
+                      resetToSeed()
+                      navigate('/')
+                      pushToast({ message: 'Demo data reset', tone: 'info' })
+                    },
+                  },
+                ]
+              : []),
             { label: 'Log out' },
           ]}
         />
