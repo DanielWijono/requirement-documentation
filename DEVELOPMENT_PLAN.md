@@ -13,7 +13,15 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 ## Git rules
 
-- Remote: https://github.com/DanielWijono/confluenceClone (`main` is the default branch).
+- Remote: https://github.com/DanielWijono/requirement-documentation (`main` is the default branch). The old `confluenceClone` repository was deleted.
+- **Commit identity: every commit must be authored *and* committed as `danielwijono999@gmail.com`. Never use `silverius.wijono@bni.co.id`** (a work address that is the global git default on this machine). The repository-local config pins the right address:
+  ```
+  git config user.email "danielwijono999@gmail.com"   # already set in this repo; re-run after a fresh clone
+  ```
+  Before every push, check the output lists only the personal address:
+  ```
+  git log --format='%ae %ce' | sort -u
+  ```
 - Do each phase on its own branch (`phase-N-<slug>`), then fast-forward merge into `main` and push.
 - **Never add `Co-Authored-By: Claude` (or any other AI-attribution trailer) to commit messages or PR descriptions.** Commits carry the author's identity only.
 - Run the quality gates below before every commit.
@@ -167,6 +175,7 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** The old repository contained commits authored with the work email. It was deleted, history was replayed with `danielwijono999@gmail.com` as author and committer (code unchanged), and pushed to the new `requirement-documentation` repository. Added the commit-identity rule above.
 - **2026-09-23:** Phase 5 done: the lazy editor route cut the initial bundle by 55%, and autosave no longer re-renders the nav or top bar (verified with render counts). Tests: 187, all passing.
 - **2026-09-23:** Phase 4 done: component tests for the editor chrome and the Share dialog, enforced coverage (95% of lines), and an axe scan of 14 screens. Fixed stale toolbar state, the Share dialog not saving, and two axe findings. Tests: 183, all passing. Playwright E2E deferred per the owner's instruction.
 - **2026-09-23:** Phase 3 done: the page state model, create flow, version diff, search, space screens, editor keyboard and smart links, comment anchors, link previews, and accessibility (skip links, tree keyboard, focus return). Tests: 155, all passing.
