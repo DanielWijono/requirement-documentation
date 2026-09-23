@@ -41,16 +41,16 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
       <div className="flex flex-col gap-3">
         <div className="flex gap-3">
           <div>
-            <label className="t-ui-md-medium block mb-1.5">Icon</label>
-            <input
+            <label htmlFor="space-icon" className="t-ui-md-medium block mb-1.5">Icon</label>
+            <input id="space-icon"
               value={icon}
               onChange={(e) => setIcon(e.target.value)}
               className="t-ui-md w-14 h-8 text-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg-canvas)"
             />
           </div>
           <div className="grow">
-            <label className="t-ui-md-medium block mb-1.5">Name</label>
-            <input
+            <label htmlFor="space-name-new" className="t-ui-md-medium block mb-1.5">Name</label>
+            <input id="space-name-new"
               data-autofocus
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -59,8 +59,8 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
             />
           </div>
           <div className="w-24">
-            <label className="t-ui-md-medium block mb-1.5">Key</label>
-            <input
+            <label htmlFor="space-key-new" className="t-ui-md-medium block mb-1.5">Key</label>
+            <input id="space-key-new"
               value={key}
               onChange={(e) => setKey(e.target.value.toUpperCase())}
               placeholder="DES"
@@ -69,8 +69,8 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
           </div>
         </div>
         <div>
-          <label className="t-ui-md-medium block mb-1.5">Description</label>
-          <textarea
+          <label htmlFor="space-description-new" className="t-ui-md-medium block mb-1.5">Description</label>
+          <textarea id="space-description-new"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}

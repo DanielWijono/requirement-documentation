@@ -14,7 +14,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import clsx from 'clsx'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, CloudOff, Loader2 } from 'lucide-react'
-import { canView, usePage, useContentStore, ancestorChainIn, usePageTree, useSpace } from '../../store/contentStore'
+import { canEdit, canView, usePage, useContentStore, ancestorChainIn, usePageTree, useSpace } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 import { currentUser, users } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
@@ -162,6 +162,7 @@ export function EditorShell() {
 
   if (!page) return <NotFound />
   if (!canView(page)) return <Forbidden page={page} />
+  if (!canEdit(page)) return <Forbidden page={page} action="edit" />
   if (!editor) return null
 
   const isNeverPublished = page.versions.length === 0
@@ -313,8 +314,8 @@ export function EditorShell() {
           <input type="checkbox" checked={notifyWatchers} onChange={(e) => setNotifyWatchers(e.target.checked)} className="accent-(--color-bg-accent)" />
           Notify watchers
         </label>
-        <label className="t-ui-md-medium block mb-1">Version comment</label>
-        <input
+        <label htmlFor="version-comment" className="t-ui-md-medium block mb-1">Version comment</label>
+        <input id="version-comment"
           value={versionComment}
           onChange={(e) => setVersionComment(e.target.value)}
           placeholder="What changed?"

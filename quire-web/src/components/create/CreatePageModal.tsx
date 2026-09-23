@@ -75,8 +75,8 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
       >
         <div className="flex flex-col gap-4">
           <div>
-            <label className="t-ui-md-medium block mb-1.5">Space</label>
-            <select
+            <label htmlFor="create-space" className="t-ui-md-medium block mb-1.5">Space</label>
+            <select id="create-space"
               value={spaceId}
               onChange={(e) => {
                 setSpaceId(e.target.value)
@@ -94,8 +94,8 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
             </select>
           </div>
           <div>
-            <label className="t-ui-md-medium block mb-1.5">Parent page</label>
-            <select
+            <label htmlFor="create-parent" className="t-ui-md-medium block mb-1.5">Parent page</label>
+            <select id="create-parent"
               value={parentId ?? ''}
               onChange={(e) => setParentId(e.target.value || null)}
               className="t-ui-md w-full h-8 px-2 rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg-canvas)"

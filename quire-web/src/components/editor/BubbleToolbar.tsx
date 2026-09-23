@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react'
 import { Bold, Code2, Highlighter, Italic, Link as LinkIcon, MessageSquarePlus } from 'lucide-react'
 import clsx from 'clsx'
 import { promptForLink } from './linkPrompt'
+import { useActiveFormats } from './activeFormats'
 
 function ToolbarButton({ active, onClick, icon: Icon, label }: { active?: boolean; onClick: () => void; icon: typeof Bold; label: string }) {
   return (
@@ -19,6 +20,7 @@ function ToolbarButton({ active, onClick, icon: Icon, label }: { active?: boolea
 
 export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment: (selectedText: string) => void }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
+  const active = useActiveFormats(editor)
 
   useEffect(() => {
     function update() {
@@ -56,16 +58,16 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
       }}
       className="z-(--z-popover) flex items-center gap-0.5 px-1 py-1 rounded-(--radius-md)"
     >
-      <ToolbarButton icon={Bold} label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
-      <ToolbarButton icon={Italic} label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
-      <ToolbarButton icon={Code2} label="Code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
+      <ToolbarButton icon={Bold} label="Bold" active={active.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
+      <ToolbarButton icon={Italic} label="Italic" active={active.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />
+      <ToolbarButton icon={Code2} label="Code" active={active.code} onClick={() => editor.chain().focus().toggleCode().run()} />
       <ToolbarButton
         icon={LinkIcon}
         label="Link"
-        active={editor.isActive('link')}
+        active={active.link}
         onClick={() => promptForLink(editor)}
       />
-      <ToolbarButton icon={Highlighter} label="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()} />
+      <ToolbarButton icon={Highlighter} label="Highlight" active={active.highlight} onClick={() => editor.chain().focus().toggleHighlight().run()} />
       <span className="w-px h-5 bg-white/20 mx-0.5" />
       <ToolbarButton
         icon={MessageSquarePlus}

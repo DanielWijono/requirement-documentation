@@ -160,20 +160,8 @@ export function SpaceNav() {
         </button>
       </div>
 
-      <div
-        ref={treeRef}
-        id="page-tree"
-        role="tree"
-        aria-label={`${space.name} pages`}
-        tabIndex={tree.length === 0 ? -1 : undefined}
-        onKeyDown={onTreeKeyDown}
-        onFocus={(e) => {
-          const row = (e.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]')
-          if (row?.dataset.id) setFocusedId(row.dataset.id)
-        }}
-        className="flex-1 overflow-y-auto px-2 pb-2"
-      >
-        {tree.length === 0 ? (
+      {tree.length === 0 ? (
+        <div id="page-tree" tabIndex={-1} className="flex-1 overflow-y-auto px-2 pb-2 outline-none">
           <button
             onClick={() => setCreateOpen(true)}
             className="w-full flex flex-col items-center gap-2 mt-4 p-4 text-center rounded-(--radius-md) border border-dashed border-(--color-border-default) text-(--color-text-secondary) hover:border-(--color-border-strong)"
@@ -181,12 +169,25 @@ export function SpaceNav() {
             <FilePlus2 className="w-5 h-5" strokeWidth={1.5} />
             <span className="t-ui-sm">This space has no pages yet</span>
           </button>
-        ) : (
-          tree.map((node, i) => (
+        </div>
+      ) : (
+        <div
+          ref={treeRef}
+          id="page-tree"
+          role="tree"
+          aria-label={`${space.name} pages`}
+          onKeyDown={onTreeKeyDown}
+          onFocus={(e) => {
+            const row = (e.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]')
+            if (row?.dataset.id) setFocusedId(row.dataset.id)
+          }}
+          className="flex-1 overflow-y-auto px-2 pb-2"
+        >
+          {tree.map((node, i) => (
             <PageTreeItem key={node.id} posInSet={i + 1} setSize={tree.length} node={node} spaceId={spaceId!} depth={0} activePageId={pageId} ancestorIds={ancestorIds} />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       <button
         onClick={toggleNav}

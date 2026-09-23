@@ -5,11 +5,11 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 4
+- **Current phase:** Phase 5
 
 ## Next up
 
-1. Testing depth (Phase 4), then performance (Phase 5).
+1. Performance (Phase 5).
 
 ## Git rules
 
@@ -25,7 +25,8 @@ Run these from `quire-web/`:
 ```
 npx tsc -b      # typecheck: must be 0 errors
 npm run lint    # oxlint: no new warnings
-npm test        # vitest: all green, apart from tests listed below as known bugs
+npm test        # vitest: all green
+npm run coverage  # coverage must stay above the thresholds in vitest.config.ts
 npm run build   # must succeed
 ```
 
@@ -120,10 +121,16 @@ Items from `design.md` that were missing or partial.
 
 ## Phase 4 — Testing depth
 
-- [ ] Component tests: `EditorToolbar`, `SlashMenu`, `BubbleToolbar`, `SearchResults`, `SpaceSettings`, `ShareModal`, `VersionCompareModal`
-- [ ] Coverage report (`vitest --coverage`) with a minimum-coverage threshold once Phase 1 is done
-- [ ] An accessibility check such as `vitest-axe` on the main screens
-- [ ] End-to-end browser tests (Playwright) for the key journeys: create → edit → publish → comment → restore. Hold these until the UI stabilizes.
+- [x] Component tests: `EditorToolbar`, `SlashMenu` + `useSlashMenu`, `BubbleToolbar` (against a real headless Tiptap editor, `tests/editorHarness.ts`), `ShareModal`, plus the earlier `SearchResults`, `SpaceSettings` and `VersionCompareModal` suites
+- [x] Coverage report (`npm run coverage`, v8) with enforced minimums: statements 90, branches 82, functions 65, lines 90. Baseline: 95 / 88 / 71 / 95.
+- [x] Accessibility check: axe-core on 14 screens and dialogs (`tests/ui/axe.test.tsx`, colour contrast excluded because jsdom has no layout)
+- [ ] End-to-end browser tests (Playwright) for the key journeys. **Deferred by the owner's instruction:** verification uses unit and UI tests only, with no Playwright. Revisit when real-browser checks are wanted (they would also cover the 320 px and zoom checks from Phase 3).
+
+**Found and fixed while writing these tests**
+- [x] Editor toolbar and bubble toolbar showed stale formatting state, lagging up to 1 s. Tiptap v3 does not re-render on transactions, so they now subscribe via `useEditorState` (`activeFormats.ts`).
+- [x] The Share dialog's Save stored nothing, the "Inherited from Architecture" note was hardcoded on every page, and the displayed link differed from the copied one. Restrictions are now saved (`viewerIds` / `editorIds`), inherited restrictions are computed from ancestors, and the tree lock icon stays in sync.
+- [x] New edit permission: view-only users get no Edit button, no `E` shortcut, and a 403 on the editor route
+- [x] axe: labels in the Create and Create-space dialogs weren't linked to their fields; an empty page tree was `role="tree"` with no tree items
 
 ## Phase 5 — Performance
 
@@ -154,6 +161,7 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 4 done: component tests for the editor chrome and the Share dialog, enforced coverage (95% of lines), and an axe scan of 14 screens. Fixed stale toolbar state, the Share dialog not saving, and two axe findings. Tests: 183, all passing. Playwright E2E deferred per the owner's instruction.
 - **2026-09-23:** Phase 3 done: the page state model, create flow, version diff, search, space screens, editor keyboard and smart links, comment anchors, link previews, and accessibility (skip links, tree keyboard, focus return). Tests: 155, all passing.
 - **2026-09-23:** Phase 2 done. Content and UI preferences are saved in `localStorage` with a versioned schema and migration, plus a dev-only reset. Tests: 87, all passing.
 - **2026-09-23:** Phase 1 done. Discard now reverts; replies are saved; restoring a version restores its content; all page and tree menu actions work (Copy link, Move, Copy, Archive with Undo, Delete with confirmation and a restorable Trash screen); the Create dialog is shared by the shell. Also fixed 1.7 to 1.10, found along the way. Tests: 81, all passing.

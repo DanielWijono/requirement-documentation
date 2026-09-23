@@ -85,6 +85,8 @@ export interface Page {
   restricted: boolean
   /** When restricted: the users allowed to view. Undefined means everyone in the space. */
   viewerIds?: string[]
+  /** When restricted: the users allowed to edit. Undefined means everyone who can view. */
+  editorIds?: string[]
   labels: Label[]
   widthMode: WidthMode
   /** Latest working copy: equals the published body unless there are unpublished changes. */

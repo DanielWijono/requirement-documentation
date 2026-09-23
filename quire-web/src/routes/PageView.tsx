@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { canView, usePage } from '../store/contentStore'
+import { canEdit, canView, usePage } from '../store/contentStore'
 import { useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
 import { PageHeader } from '../components/page/PageHeader'
@@ -36,7 +36,7 @@ export function PageView() {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (isTypingTarget(e.target) || !page) return
-      if (e.key.toLowerCase() === 'e') navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)
+      if (e.key.toLowerCase() === 'e' && canEdit(page)) navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)
       else if (e.key.toLowerCase() === 'm') {
         // "Add comment on selection" (design.md §9.1): selected body text becomes the comment's anchor.
         const selection = window.getSelection()

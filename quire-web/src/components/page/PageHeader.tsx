@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { ChevronRight, MoreHorizontal, Share2, Star } from 'lucide-react'
 import type { Page } from '../../types'
 import { userById } from '../../data/mockData'
-import { ancestorChainIn, useContentStore, usePageTree, useSpace } from '../../store/contentStore'
+import { ancestorChainIn, canEdit, useContentStore, usePageTree, useSpace } from '../../store/contentStore'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
@@ -135,9 +135,11 @@ function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
 
   return (
     <>
-      <Button variant="primary" size="compact" onClick={() => navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)}>
-        Edit
-      </Button>
+      {canEdit(page) && (
+        <Button variant="primary" size="compact" onClick={() => navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)}>
+          Edit
+        </Button>
+      )}
       <Button
         variant="subtle"
         iconOnly

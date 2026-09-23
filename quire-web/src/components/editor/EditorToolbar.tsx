@@ -30,6 +30,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { users } from '../../data/mockData'
 import type { WidthMode } from '../../types'
 import { promptForLink } from './linkPrompt'
+import { useActiveFormats } from './activeFormats'
 
 const EMOJI = ['😀', '🎉', '🚀', '✅', '⚠️', '💡', '❤️', '👀', '🔥', '📌']
 
@@ -42,15 +43,6 @@ const BLOCK_OPTIONS = [
   { value: 'blockquote', label: 'Quote' },
   { value: 'codeBlock', label: 'Code block' },
 ]
-
-function currentBlock(editor: Editor): string {
-  for (let level = 1; level <= 4; level++) {
-    if (editor.isActive('heading', { level })) return `h${level}`
-  }
-  if (editor.isActive('blockquote')) return 'blockquote'
-  if (editor.isActive('codeBlock')) return 'codeBlock'
-  return 'paragraph'
-}
 
 function ToolbarButton({
   active,
@@ -94,6 +86,7 @@ export function EditorToolbar({
   onWidthModeChange: (m: WidthMode) => void
 }) {
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const active = useActiveFormats(editor)
 
   function setBlock(value: string) {
     if (value === 'paragraph') editor.chain().focus().setParagraph().run()
@@ -146,7 +139,7 @@ export function EditorToolbar({
       className="flex items-center gap-0.5 px-3 h-11 border-b border-(--color-border-default) bg-(--color-bg-canvas) sticky top-0 z-(--z-sticky) overflow-x-auto"
     >
       <select
-        value={currentBlock(editor)}
+        value={active.block}
         onChange={(e) => setBlock(e.target.value)}
         className="t-ui-md h-7 pl-2 pr-1 rounded-(--radius-sm) border border-transparent hover:border-(--color-border-strong) bg-transparent shrink-0"
         aria-label="Block type"
@@ -159,21 +152,21 @@ export function EditorToolbar({
       </select>
 
       <Divider />
-      <ToolbarButton icon={Bold} label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
-      <ToolbarButton icon={Italic} label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
-      <ToolbarButton icon={UnderlineIcon} label="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} />
-      <ToolbarButton icon={Strikethrough} label="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} />
-      <ToolbarButton icon={Code2} label="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
-      <ToolbarButton icon={Highlighter} label="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()} />
+      <ToolbarButton icon={Bold} label="Bold" active={active.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
+      <ToolbarButton icon={Italic} label="Italic" active={active.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />
+      <ToolbarButton icon={UnderlineIcon} label="Underline" active={active.underline} onClick={() => editor.chain().focus().toggleUnderline().run()} />
+      <ToolbarButton icon={Strikethrough} label="Strikethrough" active={active.strike} onClick={() => editor.chain().focus().toggleStrike().run()} />
+      <ToolbarButton icon={Code2} label="Inline code" active={active.code} onClick={() => editor.chain().focus().toggleCode().run()} />
+      <ToolbarButton icon={Highlighter} label="Highlight" active={active.highlight} onClick={() => editor.chain().focus().toggleHighlight().run()} />
 
       <Divider />
-      <ToolbarButton icon={List} label="Bulleted list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} />
-      <ToolbarButton icon={ListOrdered} label="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} />
-      <ToolbarButton icon={CheckSquare} label="Task list" active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()} />
-      <ToolbarButton icon={Quote} label="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
+      <ToolbarButton icon={List} label="Bulleted list" active={active.bulletList} onClick={() => editor.chain().focus().toggleBulletList().run()} />
+      <ToolbarButton icon={ListOrdered} label="Numbered list" active={active.orderedList} onClick={() => editor.chain().focus().toggleOrderedList().run()} />
+      <ToolbarButton icon={CheckSquare} label="Task list" active={active.taskList} onClick={() => editor.chain().focus().toggleTaskList().run()} />
+      <ToolbarButton icon={Quote} label="Quote" active={active.blockquote} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
 
       <Divider />
-      <ToolbarButton icon={LinkIcon} label="Link" active={editor.isActive('link')} onClick={() => promptForLink(editor)} />
+      <ToolbarButton icon={LinkIcon} label="Link" active={active.link} onClick={() => promptForLink(editor)} />
       <Menu
         trigger={
           <span>
@@ -212,7 +205,7 @@ export function EditorToolbar({
         label="Expand"
         onClick={() => editor.chain().focus().insertContent({ type: 'expand', attrs: { title: 'Expand' }, content: [{ type: 'paragraph' }] }).run()}
       />
-      <ToolbarButton icon={Code2} label="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+      <ToolbarButton icon={Code2} label="Code block" active={active.codeBlock} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
 
       <Divider />
       <ToolbarButton

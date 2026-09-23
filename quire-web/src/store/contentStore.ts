@@ -95,10 +95,10 @@ function patchNodeState(nodes: PageTreeNode[], id: string, state: PageState): Pa
   })
 }
 
-function patchNodeTitle(nodes: PageTreeNode[], id: string, title: string): PageTreeNode[] {
+function patchNode(nodes: PageTreeNode[], id: string, patch: Partial<PageTreeNode>): PageTreeNode[] {
   return nodes.map((n) => {
-    if (n.id === id) return { ...n, title }
-    if (n.children.length) return { ...n, children: patchNodeTitle(n.children, id, title) }
+    if (n.id === id) return { ...n, ...patch }
+    if (n.children.length) return { ...n, children: patchNode(n.children, id, patch) }
     return n
   })
 }
@@ -302,13 +302,15 @@ export const useContentStore = create<ContentState>()(
     set((s) => {
       const page = s.pages[pageId]
       if (!page) return s
-      const tree = s.pageTree[page.spaceId] ?? []
+      // Keep the fields the tree mirrors in sync.
+      const nodePatch: Partial<PageTreeNode> = {}
+      if (patch.title !== undefined) nodePatch.title = patch.title
+      if (patch.restricted !== undefined) nodePatch.restricted = patch.restricted
       return {
         pages: { ...s.pages, [pageId]: { ...page, ...patch } },
-        pageTree:
-          patch.title !== undefined && patch.title !== page.title
-            ? { ...s.pageTree, [page.spaceId]: patchNodeTitle(tree, pageId, patch.title) }
-            : s.pageTree,
+        pageTree: Object.keys(nodePatch).length
+          ? { ...s.pageTree, [page.spaceId]: patchNode(s.pageTree[page.spaceId] ?? [], pageId, nodePatch) }
+          : s.pageTree,
       }
     }),
 
@@ -461,6 +463,11 @@ function setSubtreeState(pageId: string, state: 'archived' | 'deleted') {
 /** Restricted pages are only viewable by the listed users. */
 export function canView(page: Page): boolean {
   return !page.restricted || !page.viewerIds || page.viewerIds.includes(currentUser.id)
+}
+
+/** Editing needs view access, plus a place in the editor list when one is set. */
+export function canEdit(page: Page): boolean {
+  return canView(page) && (!page.restricted || !page.editorIds || page.editorIds.includes(currentUser.id))
 }
 
 /** Pages that belong in lists, search and navigation menus: not archived, not deleted, and viewable. */
