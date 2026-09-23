@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { Eye, MoreHorizontal, Star } from 'lucide-react'
-import { useContentStore, useSpace, usePageTree } from '../store/contentStore'
+import { isVisiblePage, useContentStore, useSpace, usePageTree } from '../store/contentStore'
+import { useUIStore } from '../store/uiStore'
+import { downloadFile } from '../lib/download'
 import { Button } from '../components/ui/Button'
 import { Menu } from '../components/ui/Menu'
 import { NotFound } from './NotFound'
@@ -11,8 +13,19 @@ export function SpaceOverview() {
   const space = useSpace(spaceId)
   const tree = usePageTree(spaceId)
   const toggleSpaceStar = useContentStore((s) => s.toggleSpaceStar)
+  const toggleSpaceWatch = useContentStore((s) => s.toggleSpaceWatch)
+  const pages = useContentStore((s) => s.pages)
+  const pushToast = useUIStore((s) => s.pushToast)
 
   if (!space) return <NotFound />
+  const spacePages = Object.values(pages).filter((p) => p.spaceId === space.id && isVisiblePage(p))
+
+  function exportSpace() {
+    if (!space) return
+    const body = JSON.stringify({ space, pages: spacePages, tree }, null, 2)
+    downloadFile(`${space.key.toLowerCase()}-export.json`, body)
+    pushToast({ message: `Exported ${spacePages.length} pages`, tone: 'success' })
+  }
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -22,20 +35,29 @@ export function SpaceOverview() {
           <div className="grow">
             <h1 className="t-content-title">{space.name}</h1>
             <p className="t-ui-sm text-(--color-text-secondary) mt-1">
-              {space.key} &middot; {space.pageCount} pages &middot; {space.memberCount} members
+              {space.key} &middot; {spacePages.length} page{spacePages.length === 1 ? '' : 's'} &middot; {space.memberCount} members
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0 pt-1">
-            <Button variant="default" size="compact" icon={<Star strokeWidth={1.5} fill={space.starred ? 'currentColor' : 'none'} />} onClick={() => toggleSpaceStar(spaceId!)}>
+            <Button variant="default" size="compact" aria-pressed={space.starred} icon={<Star strokeWidth={1.5} fill={space.starred ? 'currentColor' : 'none'} />} onClick={() => toggleSpaceStar(spaceId!)}>
               {space.starred ? 'Starred' : 'Star'}
             </Button>
-            <Button variant="default" size="compact" icon={<Eye strokeWidth={1.5} />}>
-              Watch
+            <Button
+              variant="default"
+              size="compact"
+              icon={<Eye strokeWidth={1.5} />}
+              aria-pressed={Boolean(space.watched)}
+              onClick={() => {
+                toggleSpaceWatch(space.id)
+                pushToast({ message: space.watched ? 'Stopped watching this space' : 'Watching this space', tone: 'success' })
+              }}
+            >
+              {space.watched ? 'Watching' : 'Watch'}
             </Button>
             <Menu
               align="end"
               trigger={<Button variant="subtle" iconOnly icon={<MoreHorizontal strokeWidth={1.5} />} aria-label="Space actions" />}
-              items={[{ label: 'Space settings', onSelect: () => navigate(`/spaces/${spaceId}/settings`) }, { label: 'Export space' }]}
+              items={[{ label: 'Space settings', onSelect: () => navigate(`/spaces/${spaceId}/settings`) }, { label: 'Export space', onSelect: exportSpace }]}
             />
           </div>
         </div>

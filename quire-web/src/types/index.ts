@@ -22,7 +22,13 @@ export interface Space {
   starred: boolean
   archived: boolean
   ownerId: string
+  watched?: boolean
+  /** Principal id (user id or group id) → granted permissions. Missing means the defaults. */
+  permissions?: Record<string, SpacePermission[]>
 }
+
+export const SPACE_PERMISSIONS = ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin'] as const
+export type SpacePermission = (typeof SPACE_PERMISSIONS)[number]
 
 export type PageState =
   | 'draft'

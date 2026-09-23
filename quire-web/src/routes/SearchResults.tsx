@@ -86,7 +86,7 @@ export function SearchResults() {
   const pageTree = useContentStore((s) => s.pageTree)
 
   const query = params.get('q') ?? ''
-  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, contributor: params.get('contributor') })
+  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, contributor: params.get('contributor'), label: params.get('label') })
   const [sort, setSort] = useState<Sort>('relevance')
   const [filtersOpen, setFiltersOpen] = useState(false)
 

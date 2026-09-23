@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import type { Comment, Page, PageState, PageTreeNode, Space } from '../types'
+import type { Comment, Page, PageState, PageTreeNode, Space, SpacePermission } from '../types'
 import { currentUser, pageTree as pageTreeSeed, pages as pagesSeed, recentlyViewedSeed, spaces as spacesSeed } from '../data/mockData'
 
 interface RecentEntry {
@@ -33,6 +33,22 @@ interface ContentState {
   restorePage: (pageId: string) => void
   deletePage: (pageId: string) => void
   resetToSeed: () => void
+  updateSpace: (spaceId: string, patch: Partial<Pick<Space, 'name' | 'key' | 'description' | 'icon'>>) => void
+  toggleSpaceWatch: (spaceId: string) => void
+  setSpacePermission: (spaceId: string, principalId: string, permission: SpacePermission, granted: boolean) => void
+  setSpaceArchived: (spaceId: string, archived: boolean) => void
+  deleteSpace: (spaceId: string) => void
+}
+
+export const SPACE_GROUP_ID = 'group.members'
+
+/** Permissions a space starts with: the owner can do everything, members can view, add, edit and comment. */
+export function effectivePermissions(space: Space, principalId: string): SpacePermission[] {
+  const explicit = space.permissions?.[principalId]
+  if (explicit) return explicit
+  if (principalId === space.ownerId) return ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin']
+  if (principalId === SPACE_GROUP_ID) return ['View', 'Add', 'Edit', 'Comment']
+  return ['View', 'Comment']
 }
 
 type ContentData = Pick<ContentState, 'spaces' | 'pages' | 'pageTree' | 'recentlyViewed'>
@@ -130,6 +146,39 @@ export const useContentStore = create<ContentState>()(
   ...seedData(),
 
   resetToSeed: () => set(seedData()),
+
+  updateSpace: (spaceId, patch) =>
+    set((s) => ({
+      spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, ...patch, ...(patch.key ? { key: patch.key.toUpperCase() } : {}) } : sp)),
+    })),
+
+  toggleSpaceWatch: (spaceId) =>
+    set((s) => ({ spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, watched: !sp.watched } : sp)) })),
+
+  setSpacePermission: (spaceId, principalId, permission, granted) =>
+    set((s) => ({
+      spaces: s.spaces.map((sp) => {
+        if (sp.id !== spaceId) return sp
+        const current = effectivePermissions(sp, principalId)
+        const next = granted ? [...new Set([...current, permission])] : current.filter((p) => p !== permission)
+        return { ...sp, permissions: { ...sp.permissions, [principalId]: next } }
+      }),
+    })),
+
+  setSpaceArchived: (spaceId, archived) =>
+    set((s) => ({ spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, archived } : sp)) })),
+
+  deleteSpace: (spaceId) =>
+    set((s) => {
+      const pageTree = { ...s.pageTree }
+      delete pageTree[spaceId]
+      return {
+        spaces: s.spaces.filter((sp) => sp.id !== spaceId),
+        pages: Object.fromEntries(Object.entries(s.pages).filter(([, p]) => p.spaceId !== spaceId)),
+        pageTree,
+        recentlyViewed: s.recentlyViewed.filter((r) => r.spaceId !== spaceId),
+      }
+    }),
 
   toggleSpaceStar: (spaceId) =>
     set((s) => ({
@@ -427,8 +476,11 @@ export function usePage(pageId: string | undefined) {
   return useContentStore((s) => (pageId ? s.pages[pageId] : undefined))
 }
 
+// Selectors must return a stable reference; a fresh [] per call makes zustand re-render forever.
+const EMPTY_TREE: PageTreeNode[] = []
+
 export function usePageTree(spaceId: string | undefined) {
-  return useContentStore((s) => (spaceId ? s.pageTree[spaceId] ?? [] : []))
+  return useContentStore((s) => (spaceId ? s.pageTree[spaceId] ?? EMPTY_TREE : EMPTY_TREE))
 }
 
 export function findTreeNodeIn(nodes: PageTreeNode[], pageId: string): PageTreeNode | undefined {
