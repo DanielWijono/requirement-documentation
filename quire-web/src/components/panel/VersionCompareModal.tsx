@@ -9,30 +9,44 @@ import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
+import { diffHtml, hasChanges } from '../../lib/diff'
+import type { DiffOp, DiffPart } from '../../lib/diff'
 import { pageUrl } from '../page/usePageActions'
 
-function DiffPane() {
+function Part({ part, show }: { part: DiffPart; show: DiffOp[] }) {
+  if (!show.includes(part.op)) return null
+  if (part.op === 'equal') return <>{part.text}</>
+  const added = part.op === 'add'
+  return (
+    <span
+      className={
+        added
+          ? 'bg-(--status-success-subtle) underline decoration-2 rounded-(--radius-sm) px-0.5'
+          : 'bg-(--status-danger-subtle) line-through decoration-2 rounded-(--radius-sm) px-0.5'
+      }
+    >
+      {/* The glyph repeats the signal so changes never rely on colour alone. */}
+      <span aria-hidden className={added ? 'text-(--status-success-bold) mr-1' : 'text-(--status-danger-bold) mr-1'}>
+        {added ? '+' : '−'}
+      </span>
+      <span className="sr-only">{added ? 'Added: ' : 'Removed: '}</span>
+      {part.text}
+    </span>
+  )
+}
+
+function DiffPane({ paragraphs, show }: { paragraphs: DiffPart[][]; show: DiffOp[] }) {
   return (
     <div className="prose max-w-none">
-      <p>
-        We need a durable transport for payment lifecycle events between the ledger service and its{' '}
-        <span className="bg-(--status-danger-subtle) line-through decoration-2 rounded-(--radius-sm) px-0.5">
-          <span aria-hidden className="text-(--status-danger-bold) not-italic mr-1">−</span>
-          six
-        </span>{' '}
-        <span className="bg-(--status-success-subtle) underline decoration-2 rounded-(--radius-sm) px-0.5">
-          <span aria-hidden className="text-(--status-success-bold) not-italic mr-1">+</span>
-          nine
-        </span>{' '}
-        downstream consumers.
-      </p>
-      <p>
-        We will introduce a managed queue in front of every consumer. Producers publish once;{' '}
-        <span className="bg-(--status-success-subtle) underline decoration-2 rounded-(--radius-sm) px-0.5">
-          <span aria-hidden className="text-(--status-success-bold) not-italic mr-1">+</span>
-          events are retried up to 5 times per consumer with exponential backoff before landing in a dead-letter queue.
-        </span>
-      </p>
+      {paragraphs
+        .filter((p) => p.some((part) => show.includes(part.op)))
+        .map((p, i) => (
+          <p key={i}>
+            {p.map((part, k) => (
+              <Part key={k} part={part} show={show} />
+            ))}
+          </p>
+        ))}
     </div>
   )
 }
@@ -55,6 +69,11 @@ export function VersionCompareModal({
   const v = page.versions.find((x) => x.version === version)
   if (!v) return null
   const author = userById(v.authorId)
+  // Compare the selected version with what is live now; for the live version, with the one before it.
+  const base = v.current ? page.versions.find((x) => x.version < v.version && x.contentHtml !== undefined) : v
+  const target = v.current ? v.contentHtml : page.publishedHtml
+  const comparedLabel = v.current ? (base ? `Version ${base.version} → Version ${v.version}` : null) : `Version ${v.version} → current`
+  const paragraphs = base?.contentHtml !== undefined && target !== undefined ? diffHtml(base.contentHtml, target) : null
 
   return createPortal(
     <div className="fixed inset-0 z-(--z-modal) bg-(--color-bg-app) flex flex-col">
@@ -89,12 +108,34 @@ export function VersionCompareModal({
       </header>
       <div className="flex-1 overflow-y-auto py-8 px-6">
         <div className="max-w-[960px] mx-auto">
-          <p className="t-ui-sm text-(--color-text-secondary) mb-4">
-            Illustrative diff. Additions are underlined on a success background; removals are struck through on a
-            danger background. A gutter glyph repeats the signal so it never relies on colour alone.
-          </p>
           <h1 className="t-content-title mb-2">{page.title}</h1>
-          <DiffPane />
+          {paragraphs === null ? (
+            <p className="t-ui-md text-(--color-text-secondary)">
+              {v.contentHtml === undefined ? 'Content for this version isn’t available, so it can’t be compared.' : 'There is no earlier version to compare with.'}
+            </p>
+          ) : !hasChanges(paragraphs) ? (
+            <p className="t-ui-md text-(--color-text-secondary)">{comparedLabel}: no text changes.</p>
+          ) : (
+            <>
+              <p className="t-ui-sm text-(--color-text-secondary) mb-4">
+                {comparedLabel}. Additions are underlined with a + mark; removals are struck through with a − mark.
+              </p>
+              {/* Unified below lg, side by side at lg (design.md §8.6). */}
+              <div className="lg:hidden" data-testid="diff-unified">
+                <DiffPane paragraphs={paragraphs} show={['equal', 'add', 'remove']} />
+              </div>
+              <div className="hidden lg:grid grid-cols-2 gap-8" data-testid="diff-split">
+                <div>
+                  <p className="t-ui-sm-medium text-(--color-text-secondary) mb-2">Before</p>
+                  <DiffPane paragraphs={paragraphs} show={['equal', 'remove']} />
+                </div>
+                <div>
+                  <p className="t-ui-sm-medium text-(--color-text-secondary) mb-2">After</p>
+                  <DiffPane paragraphs={paragraphs} show={['equal', 'add']} />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
