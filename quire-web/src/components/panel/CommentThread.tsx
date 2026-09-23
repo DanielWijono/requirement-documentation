@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Check, MessageCircle, MoreHorizontal, SmilePlus } from 'lucide-react'
 import type { Comment } from '../../types'
@@ -6,6 +6,7 @@ import { userById } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { useContentStore } from '../../store/contentStore'
+import { useUIStore } from '../../store/uiStore'
 
 export function CommentThread({ pageId, comment }: { pageId: string; comment: Comment }) {
   const author = userById(comment.authorId)
@@ -13,6 +14,12 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
   const addReply = useContentStore((s) => s.addReply)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
+  const focused = useUIStore((s) => s.focusedCommentId === comment.id)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [focused])
 
   function submitReply() {
     if (!replyText.trim()) return
@@ -23,9 +30,13 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
 
   return (
     <div
+      ref={ref}
+      id={`comment-${comment.id}`}
+      aria-current={focused || undefined}
       className={clsx(
         'p-3 rounded-(--radius-md) border',
-        comment.resolved ? 'border-(--color-border-default) opacity-60' : 'border-(--color-border-default)',
+        focused ? 'border-(--color-border-focus) ring-1 ring-(--color-border-focus)' : 'border-(--color-border-default)',
+        comment.resolved && 'opacity-60',
       )}
     >
       {comment.anchorText && (

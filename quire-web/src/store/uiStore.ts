@@ -25,6 +25,8 @@ interface UIState {
   createPageOpen: boolean
   toasts: Toast[]
   pendingCommentAnchor: string | null
+  /** Comment thread to scroll to and highlight in the comments panel. */
+  focusedCommentId: string | null
 
   setTheme: (t: ThemePref) => void
   setDensity: (d: Density) => void
@@ -42,6 +44,7 @@ interface UIState {
   pushToast: (t: Omit<Toast, 'id'>) => void
   dismissToast: (id: string) => void
   setPendingCommentAnchor: (text: string | null) => void
+  focusComment: (commentId: string | null) => void
 }
 
 const startsWithNavCollapsed = typeof window !== 'undefined' && window.matchMedia('(max-width: 959px)').matches
@@ -62,6 +65,7 @@ export const useUIStore = create<UIState>()(
   createPageOpen: false,
   toasts: [],
   pendingCommentAnchor: null,
+  focusedCommentId: null,
 
   setTheme: (theme) => set({ theme }),
   setDensity: (density) => set({ density }),
@@ -85,6 +89,7 @@ export const useUIStore = create<UIState>()(
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPendingCommentAnchor: (text) => set({ pendingCommentAnchor: text }),
+  focusComment: (commentId) => set(commentId ? { focusedCommentId: commentId, rightPanelOpen: true, rightPanelTab: 'comments' } : { focusedCommentId: null }),
     }),
     {
       name: UI_STORAGE_KEY,

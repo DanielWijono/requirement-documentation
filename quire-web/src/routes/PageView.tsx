@@ -23,6 +23,8 @@ export function PageView() {
   const recordView = useContentStore((s) => s.recordView)
   const togglePageStar = useContentStore((s) => s.togglePageStar)
   const openRightPanel = useUIStore((s) => s.openRightPanel)
+  const setPendingCommentAnchor = useUIStore((s) => s.setPendingCommentAnchor)
+  const focusComment = useUIStore((s) => s.focusComment)
   // Page id whose unpublished changes are being previewed; resets naturally on navigation.
   const [draftViewFor, setDraftViewFor] = useState<string | null>(null)
 
@@ -35,12 +37,19 @@ export function PageView() {
     function handler(e: KeyboardEvent) {
       if (isTypingTarget(e.target) || !page) return
       if (e.key.toLowerCase() === 'e') navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)
-      else if (e.key.toLowerCase() === 'm') openRightPanel('comments')
+      else if (e.key.toLowerCase() === 'm') {
+        // "Add comment on selection" (design.md §9.1): selected body text becomes the comment's anchor.
+        const selection = window.getSelection()
+        const text = selection?.toString().trim()
+        const inBody = selection?.anchorNode && document.getElementById('page-scroll-region')?.contains(selection.anchorNode)
+        if (text && inBody) setPendingCommentAnchor(text)
+        openRightPanel('comments')
+      }
       else if (e.key.toLowerCase() === 's') togglePageStar(page.id)
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [page, spaceId, navigate, openRightPanel, togglePageStar])
+  }, [page, spaceId, navigate, openRightPanel, togglePageStar, setPendingCommentAnchor])
 
   if (!page) return <NotFound />
   if (!canView(page)) return <Forbidden page={page} />
@@ -53,7 +62,13 @@ export function PageView() {
     <div className="flex-1 flex min-w-0">
       <div id="page-scroll-region" className="flex-1 min-w-0 overflow-y-auto">
         <PageHeader page={page} viewingDraft={viewingDraft} onToggleDraftView={() => setDraftViewFor(viewingDraft ? null : page.id)} />
-        <PageContent html={html} widthMode={page.widthMode} archived={page.state === 'archived'} />
+        <PageContent
+          html={html}
+          widthMode={page.widthMode}
+          archived={page.state === 'archived'}
+          anchors={page.comments.filter((c) => !c.resolved && c.anchorText)}
+          onAnchorClick={focusComment}
+        />
       </div>
       <RightPanel page={page} />
     </div>

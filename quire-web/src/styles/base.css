@@ -167,6 +167,25 @@ a {
   border-radius: var(--radius-sm);
   padding: 0 2px;
 }
+.prose mark.comment-anchor {
+  background: var(--color-highlight);
+  color: inherit;
+  border-bottom: 2px solid var(--status-warning-bold);
+  cursor: pointer;
+}
+.prose mark.comment-anchor:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+/* Smart link chip: a pasted internal page URL rendered as the page title. */
+.prose a.smart-link {
+  text-decoration: none;
+  color: var(--color-text-link);
+  background: var(--color-bg-selected);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3em;
+  font-weight: 500;
+}
 .prose ul,
 .prose ol {
   margin: 0;

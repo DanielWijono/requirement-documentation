@@ -28,6 +28,9 @@ import { BubbleToolbar } from './BubbleToolbar'
 import { Callout } from './extensions/callout'
 import { Expand } from './extensions/expand'
 import { Mention } from './extensions/mention'
+import { EditorShortcuts } from './extensions/editorShortcuts'
+import { SmartLinks } from './extensions/smartLinks'
+import { promptForLink } from './linkPrompt'
 import type { WidthMode } from '../../types'
 import { NotFound } from '../../routes/NotFound'
 import { Forbidden } from '../../routes/Forbidden'
@@ -73,6 +76,18 @@ export function EditorShell() {
       Callout,
       Expand,
       Mention,
+      EditorShortcuts.configure({
+        onLink: () => {
+          if (editorRef.current) promptForLink(editorRef.current)
+        },
+        onEscape: () => document.querySelector<HTMLElement>('#editor-toolbar [tabindex="0"]')?.focus(),
+      }),
+      SmartLinks.configure({
+        resolveTitle: (linkSpaceId, linkPageId) => {
+          const target = useContentStore.getState().pages[linkPageId]
+          return target && target.spaceId === linkSpaceId && canView(target) ? target.title : null
+        },
+      }),
     ],
     content: page?.contentHtml ?? '<p></p>',
     editorProps: { attributes: { class: 'prose max-w-none' } },
@@ -80,6 +95,10 @@ export function EditorShell() {
   })
 
   const slash = useSlashMenu(editor ?? null)
+  const editorRef = useRef(editor)
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
 
   function scheduleSave() {
     if (saveTimer.current) clearTimeout(saveTimer.current)

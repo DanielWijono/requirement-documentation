@@ -27,6 +27,8 @@ export function AppShell() {
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
+      // Shortcuts the focused widget already handled (e.g. ⌘K inside the editor) win over global ones.
+      if (e.defaultPrevented) return
       const typing = isTypingTarget(e.target)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()

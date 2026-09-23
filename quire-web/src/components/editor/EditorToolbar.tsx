@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/react'
 import clsx from 'clsx'
 import {
@@ -28,6 +29,7 @@ import { Menu } from '../ui/Menu'
 import { Tooltip } from '../ui/Tooltip'
 import { users } from '../../data/mockData'
 import type { WidthMode } from '../../types'
+import { promptForLink } from './linkPrompt'
 
 const EMOJI = ['😀', '🎉', '🚀', '✅', '⚠️', '💡', '❤️', '👀', '🔥', '📌']
 
@@ -100,21 +102,47 @@ export function EditorToolbar({
     else if (value === 'codeBlock') editor.chain().focus().toggleCodeBlock().run()
   }
 
-  function insertLink() {
-    const previousUrl = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('Link URL', previousUrl ?? 'https://')
-    if (url === null) return
-    if (url === '') {
-      editor.chain().focus().unsetLink().run()
-      return
-    }
-    editor.chain().focus().setLink({ href: url }).run()
+  // Roving tabindex (design.md §11): the toolbar is one tab stop; arrow keys move within it.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  function toolbarItems() {
+    const root = toolbarRef.current
+    if (!root) return []
+    return [...root.querySelectorAll<HTMLElement>('button, select')].filter((el) => !el.closest('[role="menu"]') && !el.hasAttribute('disabled'))
+  }
+
+  useEffect(() => {
+    const items = toolbarItems()
+    const current = Math.min(activeIndex, items.length - 1)
+    items.forEach((el, i) => {
+      el.tabIndex = i === current ? 0 : -1
+    })
+  })
+
+  function onToolbarKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+    const items = toolbarItems()
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    if (index === -1) return
+    e.preventDefault()
+    const next =
+      e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length
+    setActiveIndex(next)
+    items[next].focus()
   }
 
   return (
     <div
+      ref={toolbarRef}
+      id="editor-toolbar"
       role="toolbar"
       aria-label="Formatting"
+      onKeyDown={onToolbarKeyDown}
+      onFocus={(e) => {
+        const index = toolbarItems().indexOf(e.target as HTMLElement)
+        if (index !== -1) setActiveIndex(index)
+      }}
       className="flex items-center gap-0.5 px-3 h-11 border-b border-(--color-border-default) bg-(--color-bg-canvas) sticky top-0 z-(--z-sticky) overflow-x-auto"
     >
       <select
@@ -145,7 +173,7 @@ export function EditorToolbar({
       <ToolbarButton icon={Quote} label="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
 
       <Divider />
-      <ToolbarButton icon={LinkIcon} label="Link" active={editor.isActive('link')} onClick={insertLink} />
+      <ToolbarButton icon={LinkIcon} label="Link" active={editor.isActive('link')} onClick={() => promptForLink(editor)} />
       <Menu
         trigger={
           <span>

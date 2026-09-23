@@ -17,6 +17,13 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
+// jsdom lacks layout APIs that ProseMirror calls on pointer events.
+if (!document.elementFromPoint) document.elementFromPoint = () => null
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
+}
+
 const { useContentStore } = await import('../src/store/contentStore')
 const { useUIStore } = await import('../src/store/uiStore')
 const initialContent = useContentStore.getState()

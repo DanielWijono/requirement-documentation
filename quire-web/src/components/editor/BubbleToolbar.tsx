@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { Bold, Code2, Highlighter, Italic, Link as LinkIcon, MessageSquarePlus } from 'lucide-react'
 import clsx from 'clsx'
+import { promptForLink } from './linkPrompt'
 
 function ToolbarButton({ active, onClick, icon: Icon, label }: { active?: boolean; onClick: () => void; icon: typeof Bold; label: string }) {
   return (
@@ -62,10 +63,7 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
         icon={LinkIcon}
         label="Link"
         active={editor.isActive('link')}
-        onClick={() => {
-          const url = window.prompt('Link URL', 'https://')
-          if (url) editor.chain().focus().setLink({ href: url }).run()
-        }}
+        onClick={() => promptForLink(editor)}
       />
       <ToolbarButton icon={Highlighter} label="Highlight" active={editor.isActive('highlight')} onClick={() => editor.chain().focus().toggleHighlight().run()} />
       <span className="w-px h-5 bg-white/20 mx-0.5" />

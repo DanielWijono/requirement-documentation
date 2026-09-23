@@ -40,6 +40,9 @@ export function SlashMenu({
         e.preventDefault()
         if (filtered[activeIndex]) onCommit(filtered[activeIndex])
       } else if (e.key === 'Escape') {
+        // Consume the first Escape so the editor does not also move focus to the toolbar.
+        e.preventDefault()
+        e.stopPropagation()
         onClose()
       }
     }
