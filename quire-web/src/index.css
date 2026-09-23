@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+@import './styles/tokens.css';
+@import './styles/base.css';
+
+@theme {
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-content-serif);
+  --font-mono-content: var(--font-mono);
+
+  /* Quire breakpoints: xs (default, <600), sm 600-959, md 960-1279, lg >=1280 */
+  --breakpoint-sm: 600px;
+  --breakpoint-md: 960px;
+  --breakpoint-lg: 1280px;
+}

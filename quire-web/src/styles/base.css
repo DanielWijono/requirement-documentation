@@ -1,0 +1,327 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg-app);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--color-text-link);
+}
+
+::selection {
+  background: var(--color-highlight);
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* thin, quiet scrollbars everywhere */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-round);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- UI typography ---------- */
+.t-ui-lg {
+  font: 500 16px/24px var(--font-ui);
+}
+.t-ui-md {
+  font: 400 14px/20px var(--font-ui);
+}
+.t-ui-md-medium {
+  font: 500 14px/20px var(--font-ui);
+}
+.t-ui-sm {
+  font: 400 12px/16px var(--font-ui);
+}
+.t-ui-sm-medium {
+  font: 500 12px/16px var(--font-ui);
+}
+
+/* ---------- Content typography ---------- */
+.t-content-title {
+  font: 600 36px/44px var(--font-ui);
+  letter-spacing: -0.01em;
+}
+.t-content-h1 {
+  font: 600 28px/36px var(--font-ui);
+}
+.t-content-h2 {
+  font: 600 22px/30px var(--font-ui);
+}
+.t-content-h3 {
+  font: 600 18px/26px var(--font-ui);
+}
+.t-content-h4 {
+  font: 600 16px/24px var(--font-ui);
+}
+.t-content-body {
+  font: 400 17px/28px var(--font-content-body);
+}
+.t-content-small {
+  font: 400 14px/22px var(--font-ui);
+}
+.t-content-code {
+  font: 400 14px/22px var(--font-mono);
+}
+
+[data-density='compact'] .t-content-body {
+  font-size: 16px;
+  line-height: 26px;
+}
+
+/* ---------- Page prose (read mode block rendering) ---------- */
+.prose {
+  color: var(--color-text-primary);
+}
+.prose > * + * {
+  margin-top: var(--block-rhythm);
+}
+.prose h1 {
+  font: 600 28px/36px var(--font-ui);
+  margin: 0;
+  scroll-margin-top: 96px;
+}
+.prose h2 {
+  font: 600 22px/30px var(--font-ui);
+  margin: 0;
+  scroll-margin-top: 96px;
+}
+.prose h3 {
+  font: 600 18px/26px var(--font-ui);
+  margin: 0;
+  scroll-margin-top: 96px;
+}
+.prose p {
+  font: 400 17px/28px var(--font-content-body);
+  margin: 0;
+}
+[data-density='compact'] .prose p {
+  font-size: 16px;
+  line-height: 26px;
+}
+.prose strong {
+  font-weight: 600;
+}
+.prose code {
+  font: 400 0.85em/1.4 var(--font-mono);
+  background: var(--color-bg-sunken);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+}
+.prose a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose mark.mention,
+.prose span.mention {
+  background: transparent;
+  color: var(--color-text-link);
+  font-weight: 500;
+}
+.prose mark.mention.me,
+.prose span.mention.me {
+  background: var(--color-highlight);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+.prose ul,
+.prose ol {
+  margin: 0;
+  padding-left: 24px;
+  font: 400 17px/28px var(--font-content-body);
+}
+.prose li + li {
+  margin-top: 4px;
+}
+.prose blockquote {
+  margin: 0;
+  padding-left: var(--space-400);
+  border-left: 3px solid var(--color-border-strong);
+  font-style: italic;
+  font: italic 400 17px/28px var(--font-content-body);
+}
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--color-border-default);
+  margin: var(--space-800) 0;
+}
+.prose img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  font: 400 14px/22px var(--font-ui);
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--color-border-default);
+  padding: var(--space-200) var(--space-300);
+  text-align: left;
+  vertical-align: top;
+}
+.prose th {
+  background: var(--color-bg-sunken);
+  font-weight: 600;
+}
+
+/* ---------- Callout / expand (read mode, static HTML) ---------- */
+.prose [data-callout] {
+  border-radius: var(--radius-md);
+  padding: var(--space-300);
+}
+.prose [data-callout] > *:first-child {
+  margin-top: 0;
+}
+.prose [data-callout] > *:last-child {
+  margin-bottom: 0;
+}
+.prose [data-callout='info'] {
+  background: var(--status-info-subtle);
+  color: var(--status-info-text);
+}
+.prose [data-callout='note'] {
+  background: var(--status-neutral-subtle);
+  color: var(--status-neutral-text);
+}
+.prose [data-callout='success'] {
+  background: var(--status-success-subtle);
+  color: var(--status-success-text);
+}
+.prose [data-callout='warning'] {
+  background: var(--status-warning-subtle);
+  color: var(--status-warning-text);
+}
+.prose [data-callout='danger'] {
+  background: var(--status-danger-subtle);
+  color: var(--status-danger-text);
+}
+.prose details[data-expand] {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-200) var(--space-300);
+}
+.prose details[data-expand] > summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.prose details[data-expand][open] > summary {
+  margin-bottom: var(--space-200);
+}
+.prose details[data-expand] > div > *:first-child {
+  margin-top: 0;
+}
+.prose details[data-expand] > div > *:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Editor canvas (ProseMirror) ---------- */
+.editor-canvas .ProseMirror {
+  outline: none;
+  min-height: 60vh;
+}
+.editor-canvas .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-disabled);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.editor-canvas .ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0;
+}
+.editor-canvas .ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.editor-canvas .ProseMirror ul[data-type='taskList'] li > label {
+  margin-top: 6px;
+}
+.editor-canvas .ProseMirror ul[data-type='taskList'] li > div {
+  flex: 1;
+}
+.editor-canvas .ProseMirror pre {
+  background: var(--color-bg-sunken);
+  color: var(--color-text-primary);
+  font: 400 14px/22px var(--font-mono);
+  padding: var(--space-300) var(--space-400);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.editor-canvas .ProseMirror pre code {
+  background: none;
+  padding: 0;
+}
+.editor-canvas .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+}
+.editor-canvas .ProseMirror th,
+.editor-canvas .ProseMirror td {
+  border: 1px solid var(--color-border-default);
+  padding: var(--space-200) var(--space-300);
+  min-width: 80px;
+  vertical-align: top;
+}
+.editor-canvas .ProseMirror th {
+  background: var(--color-bg-sunken);
+  font-weight: 600;
+  text-align: left;
+}
+.editor-canvas .ProseMirror .selectedCell {
+  background: var(--color-bg-selected);
+}
+.editor-canvas .ProseMirror img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+.editor-canvas .ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-border-focus);
+}
