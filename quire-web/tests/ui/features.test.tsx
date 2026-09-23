@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { renderApp } from '../renderApp'
 import { findTreeNodeIn, useContentStore } from '../../src/store/contentStore'
@@ -247,11 +247,155 @@ describe('Editor', () => {
   })
 })
 
-describe('Known behavior gaps (expected behavior)', () => {
-  it('"Discard" on the unpublished-changes banner should not publish a new version', async () => {
-    const before = content().pages['pg.adr-012'].versions.length
+describe('Page state: published vs unpublished changes', () => {
+  it('read mode shows the published body; View shows the draft', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
+    expect(screen.getByText(/six downstream consumers/)).toBeInTheDocument()
+    expect(screen.queryByText(/nine downstream consumers/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    expect(screen.getByText(/nine downstream consumers/)).toBeInTheDocument()
+    expect(screen.getByText(/Viewing unpublished changes/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show published' }))
+    expect(screen.getByText(/six downstream consumers/)).toBeInTheDocument()
+  })
+
+  it('"Discard" reverts to the published body without publishing a new version', async () => {
+    const before = content().pages['pg.adr-012']
     const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
     await user.click(screen.getByRole('button', { name: 'Discard' }))
-    expect(content().pages['pg.adr-012'].versions.length).toBe(before)
+    const after = content().pages['pg.adr-012']
+    expect(after.versions.length).toBe(before.versions.length)
+    expect(after.contentHtml).toBe(before.publishedHtml)
+    expect(screen.queryByText(/Unpublished changes/)).not.toBeInTheDocument()
+  })
+})
+
+describe('Page actions', () => {
+  async function openMore(user: ReturnType<typeof renderApp>['user']) {
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+  }
+
+  it('Copy link writes the page URL and shows a toast', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    // user-event installs its own clipboard stub during setup, so spy on it afterwards.
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
+    await openMore(user)
+    await user.click(screen.getByRole('menuitem', { name: 'Copy link' }))
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/spaces/sp.eng/pages/pg.onboarding`)
+    expect(screen.getByRole('status')).toHaveTextContent('Link copied')
+  })
+
+  it('Move… reparents the page', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    await openMore(user)
+    await user.click(screen.getByRole('menuitem', { name: 'Move…' }))
+    const dialog = screen.getByRole('dialog', { name: /Move/ })
+    const select = within(dialog).getByLabelText('New parent')
+    expect(within(select).queryByText(/^Onboarding$/)).not.toBeInTheDocument()
+    await user.selectOptions(select, 'pg.runbooks')
+    await user.click(within(dialog).getByRole('button', { name: 'Move' }))
+    expect(content().pages['pg.onboarding'].parentId).toBe('pg.runbooks')
+    expect(screen.getByRole('button', { name: 'Runbooks' })).toBeInTheDocument() // breadcrumb
+  })
+
+  it('Copy… creates a draft copy and opens it in the editor', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    await openMore(user)
+    await user.click(screen.getByRole('menuitem', { name: 'Copy…' }))
+    expect(window.location.pathname).toMatch(/\/pages\/pg\.new-\d+\/edit$/)
+    expect(await screen.findByDisplayValue('Copy of Onboarding')).toBeInTheDocument()
+  })
+
+  it('Archive shows the archived banner, Undo restores it', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    await openMore(user)
+    await user.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    expect(content().pages['pg.onboarding'].state).toBe('archived')
+    expect(screen.getByText('Archived')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(content().pages['pg.onboarding'].state).toBe('published')
+  })
+
+  it('archived banner Restore puts the page back in the tree', async () => {
+    content().archivePage('pg.onboarding')
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(content().pages['pg.onboarding'].state).toBe('published')
+    expect(within(screen.getByRole('navigation', { name: 'Engineering' })).getByText('Onboarding')).toBeInTheDocument()
+  })
+
+  it('Delete asks for confirmation (focus on Cancel) and shows the deleted screen', async () => {
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.onboarding')
+    await openMore(user)
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete this page?' })
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('heading', { name: 'This page was deleted' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Restore page' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Onboarding' })).toBeInTheDocument()
+  })
+
+  it('deleted pages disappear from Home and the command palette', async () => {
+    content().deletePage('pg.q3-plan')
+    const { user } = renderApp('/')
+    expect(screen.queryByText('Q3 plan')).not.toBeInTheDocument()
+    await user.keyboard('{Meta>}k{/Meta}')
+    await user.type(screen.getByPlaceholderText(/search pages/i), 'q3')
+    expect(screen.queryByText('plan')).not.toBeInTheDocument()
+  })
+
+  it('tree row menu offers the same actions plus New child page', async () => {
+    const { user } = renderApp('/spaces/sp.eng')
+    const nav = screen.getByRole('navigation', { name: 'Engineering' })
+    const row = within(nav).getByText('Runbooks').closest('[role="treeitem"]') as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'Page actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'New child page' }))
+    const dialog = screen.getByRole('dialog', { name: 'Create' })
+    expect(within(dialog).getAllByRole('combobox')[1]).toHaveValue('pg.runbooks')
+  })
+})
+
+describe('Comments: replies', () => {
+  it('saves a reply with the Reply button and with Cmd+Enter', async () => {
+    useUIStore.getState().openRightPanel('comments')
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
+    const panel = screen.getByRole('complementary', { name: 'Page panel' })
+    await user.click(within(panel).getByRole('button', { name: 'Reply' }))
+    await user.type(within(panel).getByPlaceholderText('Reply…'), 'First reply')
+    await user.click(within(panel).getAllByRole('button', { name: 'Reply' }).at(-1)!)
+    expect(within(panel).getByText('First reply')).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Reply' }))
+    await user.type(within(panel).getByPlaceholderText('Reply…'), 'Second{Meta>}{Enter}{/Meta}')
+    const replies = content().pages['pg.adr-012'].comments.find((c) => c.id === 'c1')!.replies!
+    expect(replies.map((r) => r.body)).toEqual(expect.arrayContaining(['First reply', 'Second']))
+  })
+})
+
+describe('Version history', () => {
+  it('restores a version with a snapshot and offers no restore without one', async () => {
+    useUIStore.getState().openRightPanel('history')
+    const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
+    const panel = screen.getByRole('complementary', { name: 'Page panel' })
+    await user.click(within(panel).getByText('Version 4'))
+    expect(screen.queryByRole('button', { name: 'Restore this version' })).not.toBeInTheDocument()
+    expect(screen.getByText(/isn’t available to restore/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    await user.click(within(panel).getByText('Version 5'))
+    await user.click(screen.getByRole('button', { name: 'Restore this version' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Restore this version?' })).getByRole('button', { name: 'Restore' }))
+    expect(content().pages['pg.adr-012'].versions[0].comment).toBe('Restored version 5')
+    expect(screen.queryByRole('heading', { name: 'Consequences' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Create page entry points', () => {
+  it('Home empty state and the palette action open the Create dialog', async () => {
+    const { user } = renderApp('/')
+    await user.keyboard('{Meta>}k{/Meta}')
+    await user.click(screen.getByText('Create page'))
+    expect(screen.getByRole('dialog', { name: 'Create' })).toBeInTheDocument()
   })
 })

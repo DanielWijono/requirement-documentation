@@ -8,6 +8,7 @@ export interface Toast {
   message: string
   tone: 'success' | 'info' | 'danger'
   actionLabel?: string
+  onAction?: () => void
   persistent?: boolean
 }
 
@@ -20,6 +21,7 @@ interface UIState {
   rightPanelOpen: boolean
   rightPanelTab: RightPanelTab
   commandPaletteOpen: boolean
+  createPageOpen: boolean
   toasts: Toast[]
   pendingCommentAnchor: string | null
 
@@ -34,6 +36,8 @@ interface UIState {
   setRightPanelTab: (tab: RightPanelTab) => void
   openCommandPalette: () => void
   closeCommandPalette: () => void
+  openCreatePage: () => void
+  closeCreatePage: () => void
   pushToast: (t: Omit<Toast, 'id'>) => void
   dismissToast: (id: string) => void
   setPendingCommentAnchor: (text: string | null) => void
@@ -50,6 +54,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   rightPanelOpen: false,
   rightPanelTab: 'comments',
   commandPaletteOpen: false,
+  createPageOpen: false,
   toasts: [],
   pendingCommentAnchor: null,
 
@@ -64,6 +69,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
   openCommandPalette: () => set({ commandPaletteOpen: true }),
   closeCommandPalette: () => set({ commandPaletteOpen: false }),
+  openCreatePage: () => set({ createPageOpen: true }),
+  closeCreatePage: () => set({ createPageOpen: false }),
   pushToast: (t) => {
     const id = Math.random().toString(36).slice(2)
     set((s) => ({ toasts: [...s.toasts, { ...t, id }] }))

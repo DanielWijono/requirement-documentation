@@ -7,8 +7,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { CounterBadge } from '../ui/Lozenge'
 import { useUIStore } from '../../store/uiStore'
 import { currentUser } from '../../data/mockData'
-import { useContentStore } from '../../store/contentStore'
-import { CreatePageModal } from '../create/CreatePageModal'
+import { isLivePage, useContentStore } from '../../store/contentStore'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
 
@@ -22,7 +21,7 @@ export function TopBar() {
   const setDensity = useUIStore((s) => s.setDensity)
   const readingFont = useUIStore((s) => s.readingFont)
   const setReadingFont = useUIStore((s) => s.setReadingFont)
-  const [createOpen, setCreateOpen] = useState(false)
+  const openCreatePage = useUIStore((s) => s.openCreatePage)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => {
@@ -37,7 +36,7 @@ export function TopBar() {
   const spaces = useContentStore((s) => s.spaces)
   const pages = useContentStore((s) => s.pages)
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
-  const starredPages = Object.values(pages).filter((p) => p.starred)
+  const starredPages = Object.values(pages).filter((p) => p.starred && isLivePage(p))
 
   return (
     <header className="h-12 shrink-0 flex items-center gap-1 px-3 border-b border-(--color-border-default) bg-(--color-bg-canvas) z-(--z-nav)">
@@ -79,7 +78,7 @@ export function TopBar() {
               Recent <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Button>
           }
-          items={recentlyViewed.map((r) => {
+          items={recentlyViewed.filter((r) => isLivePage(pages[r.pageId])).map((r) => {
             const page = pages[r.pageId]
             return {
               label: page?.title ?? r.pageId,
@@ -122,10 +121,10 @@ export function TopBar() {
       />
 
       <div className="flex items-center gap-1 ml-auto sm:ml-2 shrink-0">
-        <Button variant="primary" size="compact" icon={<Plus strokeWidth={1.75} />} className="hidden sm:inline-flex" onClick={() => setCreateOpen(true)}>
+        <Button variant="primary" size="compact" icon={<Plus strokeWidth={1.75} />} className="hidden sm:inline-flex" onClick={openCreatePage}>
           Create
         </Button>
-        <Button variant="primary" iconOnly size="compact" className="sm:hidden" icon={<Plus strokeWidth={1.75} />} onClick={() => setCreateOpen(true)} aria-label="Create" />
+        <Button variant="primary" iconOnly size="compact" className="sm:hidden" icon={<Plus strokeWidth={1.75} />} onClick={openCreatePage} aria-label="Create" />
 
         <Tooltip label="Notifications">
           <span className="relative inline-flex">
@@ -165,7 +164,6 @@ export function TopBar() {
         />
       </div>
 
-      <CreatePageModal open={createOpen} onClose={() => setCreateOpen(false)} defaultSpaceId={spaces[0]?.id ?? 'sp.eng'} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </header>
   )

@@ -144,30 +144,7 @@ const adrComments: Comment[] = [
   },
 ]
 
-export const pages: Record<string, Page> = {
-  'pg.adr-012': {
-    id: 'pg.adr-012',
-    spaceId: 'sp.eng',
-    parentId: 'pg.architecture',
-    title: 'ADR-012: Queueing strategy for payment events',
-    icon: '📐',
-    ownerId: 'u.daniel',
-    updatedById: 'u.adel',
-    updatedRelative: '3 hours ago',
-    readTime: '6 min read',
-    state: 'published-unpublished-changes',
-    restricted: true,
-    starred: true,
-    labels: [{ name: 'architecture' }, { name: 'payments' }, { name: 'decision-record' }],
-    widthMode: 'reading',
-    wordCount: 1180,
-    comments: adrComments,
-    versions: [
-      { version: 6, authorId: 'u.adel', relativeTime: '3 hours ago', comment: 'Clarify retry semantics' },
-      { version: 5, authorId: 'u.daniel', relativeTime: '2 days ago', comment: 'Add rollout plan' },
-      { version: 4, authorId: 'u.daniel', relativeTime: '1 week ago', comment: 'Initial decision recorded', current: true },
-    ],
-    contentHtml: `
+const adrDraftHtml = `
       <p>We need a durable transport for payment lifecycle events between the ledger service and its
       nine downstream consumers. This record captures the decision and the reasoning behind it.</p>
       <h2 id="context">Context</h2>
@@ -193,7 +170,44 @@ export const pages: Record<string, Page> = {
       <h2 id="consequences">Consequences</h2>
       <p>Consumers must become idempotent, since at-least-once delivery means duplicate events are
       possible. <mark class="mention me">@Daniel</mark> will own the shared idempotency-key library.</p>
-    `,
+`
+
+// Last published body: the draft above adds the consumer count change and the retry detail.
+const adrPublishedHtml = adrDraftHtml
+  .replace('its\n      nine downstream consumers', 'its\n      six downstream consumers')
+  .replace(
+    '<code>events are retried up to 5 times</code> per consumer with exponential backoff before\n      landing in a dead-letter queue.',
+    'events are retried per consumer.',
+  )
+
+// Version 5 predates the Consequences section.
+const adrV5Html = adrPublishedHtml.slice(0, adrPublishedHtml.indexOf('      <h2 id="consequences">'))
+
+export const pages: Record<string, Page> = {
+  'pg.adr-012': {
+    id: 'pg.adr-012',
+    spaceId: 'sp.eng',
+    parentId: 'pg.architecture',
+    title: 'ADR-012: Queueing strategy for payment events',
+    icon: '📐',
+    ownerId: 'u.daniel',
+    updatedById: 'u.adel',
+    updatedRelative: '3 hours ago',
+    readTime: '6 min read',
+    state: 'published-unpublished-changes',
+    restricted: true,
+    starred: true,
+    labels: [{ name: 'architecture' }, { name: 'payments' }, { name: 'decision-record' }],
+    widthMode: 'reading',
+    wordCount: 1180,
+    comments: adrComments,
+    versions: [
+      { version: 6, authorId: 'u.adel', relativeTime: '3 hours ago', comment: 'Clarify retry semantics', current: true },
+      { version: 5, authorId: 'u.daniel', relativeTime: '2 days ago', comment: 'Add rollout plan', contentHtml: adrV5Html },
+      { version: 4, authorId: 'u.daniel', relativeTime: '1 week ago', comment: 'Initial decision recorded' },
+    ],
+    contentHtml: adrDraftHtml,
+    publishedHtml: adrPublishedHtml,
   },
   'pg.onboarding': {
     id: 'pg.onboarding',

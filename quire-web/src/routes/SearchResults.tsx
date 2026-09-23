@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
-import { useContentStore, ancestorChainIn } from '../store/contentStore'
+import { useContentStore, ancestorChainIn, isLivePage } from '../store/contentStore'
 import { userById } from '../data/mockData'
 
 type Sort = 'relevance' | 'modified'
@@ -32,7 +32,7 @@ export function SearchResults() {
   const [contributorFilter, setContributorFilter] = useState<string | null>(null)
   const [sort, setSort] = useState<Sort>('relevance')
 
-  const allPages = Object.values(pages).filter((p) => p.state !== 'archived')
+  const allPages = Object.values(pages).filter(isLivePage)
 
   const results = useMemo(() => {
     let list = allPages

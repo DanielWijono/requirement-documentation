@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { usePage } from '../store/contentStore'
 import { useContentStore } from '../store/contentStore'
@@ -7,6 +7,8 @@ import { PageHeader } from '../components/page/PageHeader'
 import { PageContent } from '../components/page/PageContent'
 import { RightPanel } from '../components/panel/RightPanel'
 import { NotFound } from './NotFound'
+import { Button } from '../components/ui/Button'
+import type { Page } from '../types'
 
 function isTypingTarget(el: EventTarget | null) {
   if (!(el instanceof HTMLElement)) return false
@@ -20,6 +22,8 @@ export function PageView() {
   const recordView = useContentStore((s) => s.recordView)
   const togglePageStar = useContentStore((s) => s.togglePageStar)
   const openRightPanel = useUIStore((s) => s.openRightPanel)
+  // Page id whose unpublished changes are being previewed; resets naturally on navigation.
+  const [draftViewFor, setDraftViewFor] = useState<string | null>(null)
 
   useEffect(() => {
     if (page) recordView(page.id, page.spaceId)
@@ -38,14 +42,31 @@ export function PageView() {
   }, [page, spaceId, navigate, openRightPanel, togglePageStar])
 
   if (!page) return <NotFound />
+  if (page.state === 'deleted') return <DeletedPage page={page} />
+
+  const viewingDraft = draftViewFor === page.id
+  const html = page.state === 'published-unpublished-changes' && !viewingDraft ? page.publishedHtml ?? page.contentHtml : page.contentHtml
 
   return (
     <div className="flex-1 flex min-w-0">
       <div id="page-scroll-region" className="flex-1 min-w-0 overflow-y-auto">
-        <PageHeader page={page} />
-        <PageContent html={page.contentHtml} widthMode={page.widthMode} />
+        <PageHeader page={page} viewingDraft={viewingDraft} onToggleDraftView={() => setDraftViewFor(viewingDraft ? null : page.id)} />
+        <PageContent html={html} widthMode={page.widthMode} />
       </div>
       <RightPanel page={page} />
+    </div>
+  )
+}
+
+function DeletedPage({ page }: { page: Page }) {
+  const restorePage = useContentStore((s) => s.restorePage)
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+      <h1 className="t-content-h2">This page was deleted</h1>
+      <p className="t-ui-md text-(--color-text-secondary) max-w-[420px]">It is in Trash. A space admin can restore it.</p>
+      <Button variant="primary" onClick={() => restorePage(page.id)}>
+        Restore page
+      </Button>
     </div>
   )
 }

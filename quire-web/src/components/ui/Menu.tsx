@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
+import type { MouseEvent, ReactElement, ReactNode } from 'react'
 import { cloneElement } from 'react'
 import clsx from 'clsx'
 import { useClickOutside, useEscapeKey } from '../../hooks/useClickOutside'
@@ -19,7 +19,7 @@ export function Menu({
   items,
   align = 'start',
 }: {
-  trigger: ReactElement<{ onClick?: () => void }>
+  trigger: ReactElement<{ onClick?: (e: MouseEvent) => void }>
   items: MenuItemSpec[]
   align?: 'start' | 'end'
 }) {
@@ -30,8 +30,8 @@ export function Menu({
   useEscapeKey(() => setOpen(false), open)
 
   const child = cloneElement(trigger, {
-    onClick: () => {
-      trigger.props.onClick?.()
+    onClick: (e: MouseEvent) => {
+      trigger.props.onClick?.(e)
       setOpen((o) => !o)
     },
   })

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { FileText, Rocket, Star } from 'lucide-react'
-import { useContentStore } from '../store/contentStore'
+import { isLivePage, useContentStore } from '../store/contentStore'
+import { useUIStore } from '../store/uiStore'
 import { followingFeed, userById } from '../data/mockData'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -10,8 +11,9 @@ export function Home() {
   const spaces = useContentStore((s) => s.spaces)
   const pages = useContentStore((s) => s.pages)
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
+  const openCreatePage = useUIStore((s) => s.openCreatePage)
   const drafts = Object.values(pages).filter((p) => p.state === 'draft' && p.ownerId === 'u.daniel')
-  const starred = Object.values(pages).filter((p) => p.starred)
+  const starred = Object.values(pages).filter((p) => p.starred && isLivePage(p))
 
   const isNewUser = recentlyViewed.length === 0 && drafts.length === 0
 
@@ -24,7 +26,7 @@ export function Home() {
           <Button variant="default" onClick={() => navigate('/spaces')}>
             Browse spaces
           </Button>
-          <Button variant="primary" onClick={() => navigate('/spaces')}>
+          <Button variant="primary" onClick={openCreatePage}>
             Create page
           </Button>
         </div>
@@ -43,7 +45,7 @@ export function Home() {
                 {recentlyViewed.map((r) => {
                   const page = pages[r.pageId]
                   const space = spaces.find((s) => s.id === r.spaceId)
-                  if (!page) return null
+                  if (!isLivePage(page)) return null
                   return (
                     <button
                       key={r.pageId}
@@ -87,7 +89,7 @@ export function Home() {
                 {followingFeed.map((f) => {
                   const page = pages[f.pageId]
                   const author = userById(f.authorId)
-                  if (!page) return null
+                  if (!isLivePage(page)) return null
                   return (
                     <button
                       key={f.pageId}

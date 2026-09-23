@@ -5,8 +5,17 @@ import { userById } from '../../data/mockData'
 import { useContentStore } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 
-export function PageStateBanner({ page }: { page: Page }) {
-  const saveContent = useContentStore((s) => s.saveContent)
+export function PageStateBanner({
+  page,
+  viewingDraft,
+  onToggleDraftView,
+}: {
+  page: Page
+  viewingDraft: boolean
+  onToggleDraftView: () => void
+}) {
+  const discardChanges = useContentStore((s) => s.discardChanges)
+  const restorePage = useContentStore((s) => s.restorePage)
   const pushToast = useUIStore((s) => s.pushToast)
 
   if (page.state === 'draft') {
@@ -21,12 +30,17 @@ export function PageStateBanner({ page }: { page: Page }) {
     const editor = userById(page.updatedById)
     return (
       <Banner tone="warning">
-        <span className="grow">Unpublished changes by {editor.name}</span>
-        <button className="t-ui-sm-medium underline">View</button>
+        <span className="grow">
+          {viewingDraft ? 'Viewing unpublished changes' : 'Unpublished changes'} by {editor.name}
+        </span>
+        <button className="t-ui-sm-medium underline" onClick={onToggleDraftView}>
+          {viewingDraft ? 'Show published' : 'View'}
+        </button>
         <button
           className="t-ui-sm-medium underline"
           onClick={() => {
-            saveContent(page.id, page.contentHtml, { publish: true })
+            discardChanges(page.id)
+            if (viewingDraft) onToggleDraftView()
             pushToast({ message: 'Changes discarded', tone: 'info' })
           }}
         >
@@ -40,7 +54,15 @@ export function PageStateBanner({ page }: { page: Page }) {
     return (
       <Banner tone="neutral" icon={<ArchiveRestore className="w-4 h-4" strokeWidth={1.5} />}>
         <span className="grow">Archived</span>
-        <button className="t-ui-sm-medium underline">Restore</button>
+        <button
+          className="t-ui-sm-medium underline"
+          onClick={() => {
+            restorePage(page.id)
+            pushToast({ message: 'Page restored', tone: 'success' })
+          }}
+        >
+          Restore
+        </button>
       </Banner>
     )
   }

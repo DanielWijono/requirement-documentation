@@ -9,6 +9,7 @@ import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
+import { pageUrl } from '../page/usePageActions'
 
 function DiffPane() {
   return (
@@ -65,10 +66,21 @@ export function VersionCompareModal({
           <span className="text-(--color-text-secondary)"> · {author.name} · {v.relativeTime}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="default" size="compact" icon={<LinkIcon strokeWidth={1.5} />}>
+          <Button
+            variant="default"
+            size="compact"
+            icon={<LinkIcon strokeWidth={1.5} />}
+            onClick={() => {
+              void navigator.clipboard?.writeText(`${pageUrl(page)}?version=${v.version}`)
+              pushToast({ message: 'Link copied', tone: 'success' })
+            }}
+          >
             Copy link
           </Button>
-          {!v.current && (
+          {!v.current && v.contentHtml === undefined && (
+            <span className="t-ui-sm text-(--color-text-secondary)">Content for this version isn’t available to restore</span>
+          )}
+          {!v.current && v.contentHtml !== undefined && (
             <Button variant="primary" size="compact" icon={<RotateCcw strokeWidth={1.5} />} onClick={() => setConfirmRestore(true)}>
               Restore this version
             </Button>

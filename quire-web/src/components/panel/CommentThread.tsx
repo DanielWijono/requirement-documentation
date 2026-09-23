@@ -4,13 +4,22 @@ import { Check, MessageCircle, MoreHorizontal, SmilePlus } from 'lucide-react'
 import type { Comment } from '../../types'
 import { userById } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
+import { Button } from '../ui/Button'
 import { useContentStore } from '../../store/contentStore'
 
 export function CommentThread({ pageId, comment }: { pageId: string; comment: Comment }) {
   const author = userById(comment.authorId)
   const toggleResolve = useContentStore((s) => s.toggleResolveComment)
+  const addReply = useContentStore((s) => s.addReply)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
+
+  function submitReply() {
+    if (!replyText.trim()) return
+    addReply(pageId, comment.id, replyText.trim())
+    setReplyText('')
+    setReplyOpen(false)
+  }
 
   return (
     <div
@@ -69,20 +78,22 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
           {replyOpen && (
             <div className="mt-2 flex items-start gap-2">
               <MessageCircle className="w-4 h-4 mt-1.5 text-(--color-text-secondary)" strokeWidth={1.5} />
+              <div className="grow flex flex-col items-end gap-1.5">
               <textarea
                 autoFocus
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 placeholder="Reply…"
                 rows={1}
-                className="t-ui-md grow resize-none rounded-(--radius-sm) border border-(--color-border-strong) p-2 bg-(--color-bg-canvas)"
+                className="t-ui-md w-full resize-none rounded-(--radius-sm) border border-(--color-border-strong) p-2 bg-(--color-bg-canvas)"
                 onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    setReplyText('')
-                    setReplyOpen(false)
-                  }
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitReply()
                 }}
               />
+              <Button variant="primary" size="compact" onClick={submitReply} disabled={!replyText.trim()}>
+                Reply
+              </Button>
+              </div>
             </div>
           )}
         </div>

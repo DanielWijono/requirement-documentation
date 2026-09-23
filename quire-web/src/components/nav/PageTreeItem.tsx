@@ -5,6 +5,8 @@ import { ChevronRight, FileText, Lock, MoreHorizontal, Plus } from 'lucide-react
 import type { PageTreeNode } from '../../types'
 import { Menu } from '../ui/Menu'
 import { CreatePageModal } from '../create/CreatePageModal'
+import { usePageActions } from '../page/usePageActions'
+import { usePage } from '../../store/contentStore'
 
 export function PageTreeItem({
   node,
@@ -22,6 +24,7 @@ export function PageTreeItem({
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(ancestorIds.has(node.id) || depth === 0)
   const [createOpen, setCreateOpen] = useState(false)
+  const actions = usePageActions(usePage(node.id))
   const hasChildren = node.children.length > 0
   const isActive = node.id === activePageId
   const isDraft = node.state === 'draft'
@@ -82,15 +85,7 @@ export function PageTreeItem({
                 <MoreHorizontal className="w-3.5 h-3.5" strokeWidth={1.75} />
               </button>
             }
-            items={[
-              { label: 'New child page', onSelect: () => setCreateOpen(true) },
-              { label: 'Copy link' },
-              { label: 'Move…' },
-              { label: 'Copy…' },
-              { label: '', divider: true },
-              { label: 'Archive', destructive: true },
-              { label: 'Delete', destructive: true },
-            ]}
+            items={[{ label: 'New child page', onSelect: () => setCreateOpen(true) }, ...actions.items]}
           />
         </span>
       </div>
@@ -108,6 +103,7 @@ export function PageTreeItem({
           ))}
         </div>
       )}
+      {actions.dialogs}
       <CreatePageModal open={createOpen} onClose={() => setCreateOpen(false)} defaultSpaceId={spaceId} defaultParentId={node.id} />
     </div>
   )

@@ -11,9 +11,18 @@ import { Menu } from '../ui/Menu'
 import { RestrictedLozenge } from '../ui/Lozenge'
 import { PageStateBanner } from './PageStateBanner'
 import { ShareModal } from './ShareModal'
+import { usePageActions } from './usePageActions'
 import { useUIStore } from '../../store/uiStore'
 
-export function PageHeader({ page }: { page: Page }) {
+export function PageHeader({
+  page,
+  viewingDraft = false,
+  onToggleDraftView = () => {},
+}: {
+  page: Page
+  viewingDraft?: boolean
+  onToggleDraftView?: () => void
+}) {
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const space = useSpace(page.spaceId)
@@ -106,7 +115,7 @@ export function PageHeader({ page }: { page: Page }) {
               </div>
             )}
 
-            <PageStateBanner page={page} />
+            <PageStateBanner page={page} viewingDraft={viewingDraft} onToggleDraftView={onToggleDraftView} />
           </div>
         )}
       </div>
@@ -119,6 +128,7 @@ function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const togglePageStar = useContentStore((s) => s.togglePageStar)
+  const actions = usePageActions(page)
 
   return (
     <>
@@ -137,15 +147,13 @@ function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
         align="end"
         trigger={<Button variant="subtle" iconOnly icon={<MoreHorizontal strokeWidth={1.5} />} aria-label="More actions" />}
         items={[
-          { label: 'Copy link' },
-          { label: 'Move…' },
-          { label: 'Copy…' },
+          ...actions.items.slice(0, 3),
           { label: '', divider: true },
-          { label: 'View in templates' },
-          { label: '', divider: true },
-          { label: 'Archive', destructive: true },
+          { label: 'View in templates', onSelect: () => navigate(`/spaces/${spaceId}/templates`) },
+          ...actions.items.slice(3),
         ]}
       />
+      {actions.dialogs}
     </>
   )
 }

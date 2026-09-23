@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype running on mock data. Zustand stores only, so a reload loses all changes.
-- **Current phase:** Phase 1
+- **Current phase:** Phase 2
 
 ## Next up
 
-1. Fix the "Discard" bug that the failing test catches (Phase 1.1).
-2. Save state to `localStorage` so the app survives a page reload (Phase 2).
+1. Save state to `localStorage` so the app survives a page reload (Phase 2).
+2. Close the design-spec gaps (Phase 3).
 
 ## Git rules
 
@@ -52,15 +52,19 @@ Baseline on 2026-09-23: tsc 0 errors · lint 0 errors, 18 warnings · tests 56/5
 
 These are bugs in features that already exist. Each fix gets a test that fails before the change and passes after it.
 
-- [ ] **1.1 "Discard" publishes the changes instead of discarding them.** `PageStateBanner.tsx:30` calls `saveContent(..., { publish: true })`, which adds a new version. Discard should revert to the last published content. That means storing the published content separately from the draft (see 1.3). Failing test: `tests/ui/features.test.tsx` › "Known behavior gaps".
-- [ ] **1.2 Comment replies are thrown away.** `CommentThread.tsx`: Cmd+Enter clears the reply box without saving it. Add `addReply(pageId, commentId, body)` to the store. The spec allows one level of threading (§14.5).
-- [ ] **1.3 "Restore version" doesn't restore any content.** `restoreVersion` only adds a version entry, because `PageVersion` has no content snapshot. Add `contentHtml` to versions, snapshot it on publish, and restore from it.
-- [ ] **1.4 Many menu items do nothing:**
-  - [ ] Page and tree menus: Archive (the store already has `archivePage`), Copy link, Move…, Copy…, Delete
-  - [ ] Banner: "View" for unpublished changes, "Restore" for archived pages
-  - [ ] Toast `actionLabel` button (for example Undo)
-- [ ] **1.5 Duplicate "Collapse" label.** The nav footer's "Collapse" button has the same accessible name as the tree-row arrows. Rename the footer one to "Collapse navigation".
-- [ ] **1.6 Home "Create page" (empty state) and the palette's "Create page" action only go to `/spaces`.** They should open the Create modal.
+- [x] **1.1 "Discard" publishes the changes instead of discarding them.** `PageStateBanner.tsx:30` calls `saveContent(..., { publish: true })`, which adds a new version. Discard should revert to the last published content. That means storing the published content separately from the draft (see 1.3). Failing test: `tests/ui/features.test.tsx` › "Known behavior gaps".
+- [x] **1.2 Comment replies are thrown away.** `CommentThread.tsx`: Cmd+Enter clears the reply box without saving it. Add `addReply(pageId, commentId, body)` to the store. The spec allows one level of threading (§14.5).
+- [x] **1.3 "Restore version" doesn't restore any content.** `restoreVersion` only adds a version entry, because `PageVersion` has no content snapshot. Add `contentHtml` to versions, snapshot it on publish, and restore from it.
+- [x] **1.4 Many menu items do nothing:**
+  - [x] Page and tree menus: Archive (the store already has `archivePage`), Copy link, Move…, Copy…, Delete
+  - [x] Banner: "View" for unpublished changes, "Restore" for archived pages
+  - [x] Toast `actionLabel` button (for example Undo)
+- [x] **1.5 Duplicate "Collapse" label.** The nav footer's "Collapse" button has the same accessible name as the tree-row arrows. Rename the footer one to "Collapse navigation".
+- [x] **1.7 Read mode showed unpublished edits.** `PageView` rendered the working copy. It now renders `publishedHtml`, and the banner's View / Show published switches to the draft. (Found while fixing 1.1.)
+- [x] **1.8 The tree-row ⋯ menu crashed.** `Menu` called the trigger's `onClick` without the event, so `stopPropagation()` threw. (Found by the new tests.)
+- [x] **1.9 Deleted and archived pages still appeared** in Home (recent, starred, following feed), the palette, the Recent and Starred menus, and search. They are now filtered with `isLivePage`.
+- [x] **1.10 ADR seed data marked v4 as "Current"** even though v5 and v6 came after it. v6 is now current, and v5 has a restorable snapshot.
+- [x] **1.6 Home "Create page" (empty state) and the palette's "Create page" action only go to `/spaces`.** They should open the Create modal.
 
 ## Phase 2 — Persistence
 
@@ -83,6 +87,9 @@ Items from `design.md` that are missing or partial. Items marked (verify) weren'
 - [ ] The tree row `+` creates a blank child draft directly, without the modal (quick path)
 - [ ] Template preview in the modal, and default the parent to the current page's context
 - [ ] Templates prefill the page body (right now only the title changes)
+
+**Version compare (§8.6)**
+- [ ] Replace the illustrative diff in `VersionCompareModal` with a real diff between the version snapshot and the current body
 
 **Search (§8.5)**
 - [ ] Filters for Type, Last modified and Labels (Space and Contributor exist)
@@ -143,5 +150,6 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 1 done. Discard now reverts; replies are saved; restoring a version restores its content; all page and tree menu actions work (Copy link, Move, Copy, Archive with Undo, Delete with confirmation and a restorable Trash screen); the Create dialog is shared by the shell. Also fixed 1.7 to 1.10, found along the way. Tests: 81, all passing.
 - **2026-09-23:** Phase 0 done. Pushed the repo to GitHub, added `npm run check`, cleared all 18 lint warnings (lint is now at 0), and added a palette-reset test.
 - **2026-09-23:** First check of the app. Added the test setup (57 tests: 56 pass, 1 fails on the known Discard bug). Wrote this plan.

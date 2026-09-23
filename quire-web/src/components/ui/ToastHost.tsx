@@ -29,7 +29,15 @@ export function ToastHost() {
           {ICONS[t.tone]}
           <span className="grow truncate">{t.message}</span>
           {t.actionLabel && (
-            <button className="t-ui-md-medium text-(--color-text-link) shrink-0">{t.actionLabel}</button>
+            <button
+              onClick={() => {
+                t.onAction?.()
+                dismiss(t.id)
+              }}
+              className="t-ui-md-medium text-(--color-text-link) shrink-0"
+            >
+              {t.actionLabel}
+            </button>
           )}
           <button onClick={() => dismiss(t.id)} aria-label="Dismiss" className="shrink-0 text-(--color-text-secondary)">
             <X className="w-4 h-4" strokeWidth={1.5} />

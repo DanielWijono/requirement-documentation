@@ -101,24 +101,112 @@ describe('contentStore', () => {
     expect(store().pages['pg.adr-012'].comments[0].resolved).toBe(false)
   })
 
-  it('restoreVersion adds a new current version referencing the restored one', () => {
-    const top = store().pages['pg.adr-012'].versions[0].version
-    const target = store().pages['pg.adr-012'].versions.at(-1)!.version
-    store().restoreVersion('pg.adr-012', target)
-    const v = store().pages['pg.adr-012'].versions
-    expect(v[0]).toMatchObject({ version: top + 1, comment: `Restored version ${target}`, current: true })
-    expect(v.filter((x) => x.current)).toHaveLength(1)
+  it('restoreVersion republishes the snapshot as a new current version', () => {
+    const { pages } = store()
+    const top = pages['pg.adr-012'].versions[0].version
+    const v5 = pages['pg.adr-012'].versions.find((v) => v.version === 5)!
+    store().restoreVersion('pg.adr-012', 5)
+    const page = store().pages['pg.adr-012']
+    expect(page.versions[0]).toMatchObject({ version: top + 1, comment: 'Restored version 5', current: true })
+    expect(page.versions.filter((x) => x.current)).toHaveLength(1)
+    expect(page.contentHtml).toBe(v5.contentHtml)
+    expect(page.publishedHtml).toBe(v5.contentHtml)
+    expect(page.state).toBe('published')
   })
 
-  it('restoreVersion is a no-op for unknown versions', () => {
+  it('restoreVersion is a no-op for unknown versions or versions without a snapshot', () => {
     const before = store().pages['pg.adr-012']
     store().restoreVersion('pg.adr-012', 999)
+    store().restoreVersion('pg.adr-012', 4)
     expect(store().pages['pg.adr-012']).toBe(before)
   })
 
-  it('archivePage marks archived and removes it (and its subtree) from the nav tree', () => {
+  it('seed pages carry a published body and a snapshot on their current version', () => {
+    const page = store().pages['pg.onboarding']
+    expect(page.publishedHtml).toBe(page.contentHtml)
+    expect(page.versions.find((v) => v.current)?.contentHtml).toBe(page.contentHtml)
+    expect(store().pages['pg.new-draft'].publishedHtml).toBeUndefined()
+    const adr = store().pages['pg.adr-012']
+    expect(adr.publishedHtml).not.toBe(adr.contentHtml)
+    expect(adr.versions[0].current).toBe(true)
+  })
+
+  it('discardChanges reverts to the published body without adding a version', () => {
+    const adr = store().pages['pg.adr-012']
+    store().discardChanges('pg.adr-012')
+    const after = store().pages['pg.adr-012']
+    expect(after.contentHtml).toBe(adr.publishedHtml)
+    expect(after.state).toBe('published')
+    expect(after.versions).toHaveLength(adr.versions.length)
+    expect(findTreeNodeIn(store().pageTree['sp.eng'], 'pg.adr-012')?.state).toBe('published')
+  })
+
+  it('saving content identical to the published body clears the unpublished state', () => {
+    const published = store().pages['pg.adr-012'].publishedHtml!
+    store().saveContent('pg.adr-012', published, { publish: false })
+    expect(store().pages['pg.adr-012'].state).toBe('published')
+  })
+
+  it('addReply appends a reply to the thread', () => {
+    store().addReply('pg.adr-012', 'c1', 'Agreed')
+    const replies = store().pages['pg.adr-012'].comments.find((c) => c.id === 'c1')!.replies!
+    expect(replies.at(-1)).toMatchObject({ body: 'Agreed', authorId: 'u.daniel' })
+    expect(replies).toHaveLength(2)
+  })
+
+  it('updatePageMeta keeps the tree title in sync', () => {
+    store().updatePageMeta('pg.onboarding', { title: 'Welcome' })
+    expect(findTreeNodeIn(store().pageTree['sp.eng'], 'pg.onboarding')?.title).toBe('Welcome')
+  })
+
+  describe('movePage', () => {
+    it('moves a page and its subtree under a new parent', () => {
+      expect(store().movePage('pg.architecture', 'pg.runbooks')).toBe(true)
+      const tree = store().pageTree['sp.eng']
+      expect(ancestorChainIn(tree, 'pg.adr-012').map((n) => n.id)).toEqual(['pg.runbooks', 'pg.architecture', 'pg.adr-012'])
+      expect(store().pages['pg.architecture'].parentId).toBe('pg.runbooks')
+    })
+
+    it('moves to the space root', () => {
+      store().movePage('pg.onboarding', null)
+      expect(store().pageTree['sp.eng'].at(-1)?.id).toBe('pg.onboarding')
+    })
+
+    it('refuses to move a page under its own descendant', () => {
+      expect(store().movePage('pg.handbook', 'pg.adr-012')).toBe(false)
+      expect(findTreeNodeIn(store().pageTree['sp.eng'], 'pg.handbook')).toBeDefined()
+    })
+  })
+
+  it('copyPage creates a draft sibling with the same body', () => {
+    const id = store().copyPage('pg.onboarding')!
+    const copy = store().pages[id]
+    expect(copy).toMatchObject({ title: 'Copy of Onboarding', state: 'draft', parentId: 'pg.handbook' })
+    expect(copy.contentHtml).toBe(store().pages['pg.onboarding'].contentHtml)
+  })
+
+  it('deletePage hides the subtree and restorePage brings the page back under its parent', () => {
+    store().deletePage('pg.architecture')
+    expect(store().pages['pg.architecture'].state).toBe('deleted')
+    expect(store().pages['pg.service-map'].state).toBe('deleted')
+    store().restorePage('pg.architecture')
+    const tree = store().pageTree['sp.eng']
+    expect(store().pages['pg.architecture'].state).toBe('published')
+    expect(ancestorChainIn(tree, 'pg.architecture').map((n) => n.id)).toEqual(['pg.handbook', 'pg.architecture'])
+  })
+
+  it('restorePage falls back to the space root when the parent is gone', () => {
+    store().archivePage('pg.onboarding')
+    store().archivePage('pg.handbook')
+    store().restorePage('pg.onboarding')
+    expect(store().pageTree['sp.eng'].some((n) => n.id === 'pg.onboarding')).toBe(true)
+    expect(store().pages['pg.onboarding'].parentId).toBeNull()
+  })
+
+  it('archivePage marks the subtree archived and removes it from the nav tree', () => {
     store().archivePage('pg.architecture')
     expect(store().pages['pg.architecture'].state).toBe('archived')
+    expect(store().pages['pg.adr-012'].state).toBe('archived')
     const tree = store().pageTree['sp.eng']
     expect(findTreeNodeIn(tree, 'pg.architecture')).toBeUndefined()
     expect(findTreeNodeIn(tree, 'pg.adr-012')).toBeUndefined()

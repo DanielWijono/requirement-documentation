@@ -30,6 +30,7 @@ export type PageState =
   | 'published-unpublished-changes'
   | 'restricted'
   | 'archived'
+  | 'deleted'
 
 export interface PageTreeNode {
   id: string
@@ -60,6 +61,8 @@ export interface PageVersion {
   relativeTime: string
   comment: string
   current?: boolean
+  /** Snapshot of the page body at this version. Missing for legacy versions. */
+  contentHtml?: string
 }
 
 export interface Page {
@@ -76,7 +79,10 @@ export interface Page {
   restricted: boolean
   labels: Label[]
   widthMode: WidthMode
+  /** Latest working copy: equals the published body unless there are unpublished changes. */
   contentHtml: string
+  /** Body as of the last publish. Undefined for pages that were never published. */
+  publishedHtml?: string
   comments: Comment[]
   versions: PageVersion[]
   wordCount: number

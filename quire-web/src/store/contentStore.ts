@@ -17,18 +17,35 @@ interface ContentState {
   toggleSpaceStar: (spaceId: string) => void
   togglePageStar: (pageId: string) => void
   recordView: (pageId: string, spaceId: string) => void
-  createPage: (spaceId: string, parentId: string | null, title?: string) => string
+  createPage: (spaceId: string, parentId: string | null, title?: string, contentHtml?: string) => string
   createSpace: (input: { name: string; key: string; description: string; icon: string }) => string
   saveContent: (pageId: string, html: string, opts: { publish: boolean; comment?: string }) => void
+  discardChanges: (pageId: string) => void
   updatePageMeta: (pageId: string, patch: Partial<Page>) => void
   addComment: (pageId: string, body: string, anchorText?: string) => void
+  addReply: (pageId: string, commentId: string, body: string) => void
   toggleResolveComment: (pageId: string, commentId: string) => void
   restoreVersion: (pageId: string, version: number) => void
+  movePage: (pageId: string, newParentId: string | null) => boolean
+  copyPage: (pageId: string) => string | null
   archivePage: (pageId: string) => void
+  restorePage: (pageId: string) => void
+  deletePage: (pageId: string) => void
 }
 
 function cloneSeed<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+/** Fill in fields older seed data lacks: the published body and a snapshot on the current version. */
+function normalizePages(pages: Record<string, Page>): Record<string, Page> {
+  return Object.fromEntries(
+    Object.entries(pages).map(([id, p]) => {
+      const publishedHtml = p.publishedHtml ?? (p.state === 'draft' ? undefined : p.contentHtml)
+      const versions = p.versions.map((v) => (v.current && v.contentHtml === undefined ? { ...v, contentHtml: publishedHtml } : v))
+      return [id, { ...p, publishedHtml, versions }]
+    }),
+  )
 }
 
 function insertNode(nodes: PageTreeNode[], parentId: string | null, node: PageTreeNode): PageTreeNode[] {
@@ -54,11 +71,23 @@ function patchNodeState(nodes: PageTreeNode[], id: string, state: PageState): Pa
   })
 }
 
+function patchNodeTitle(nodes: PageTreeNode[], id: string, title: string): PageTreeNode[] {
+  return nodes.map((n) => {
+    if (n.id === id) return { ...n, title }
+    if (n.children.length) return { ...n, children: patchNodeTitle(n.children, id, title) }
+    return n
+  })
+}
+
+function collectIds(node: PageTreeNode): string[] {
+  return [node.id, ...node.children.flatMap(collectIds)]
+}
+
 let nextId = 1000
 
-export const useContentStore = create<ContentState>((set) => ({
+export const useContentStore = create<ContentState>((set, get) => ({
   spaces: cloneSeed(spacesSeed),
-  pages: cloneSeed(pagesSeed),
+  pages: normalizePages(cloneSeed(pagesSeed)),
   pageTree: cloneSeed(pageTreeSeed),
   recentlyViewed: cloneSeed(recentlyViewedSeed),
 
@@ -80,7 +109,7 @@ export const useContentStore = create<ContentState>((set) => ({
       ].slice(0, 8),
     })),
 
-  createPage: (spaceId, parentId, title = 'Untitled') => {
+  createPage: (spaceId, parentId, title = 'Untitled', contentHtml = '<p></p>') => {
     const id = `pg.new-${nextId++}`
     const page: Page = {
       id,
@@ -98,7 +127,7 @@ export const useContentStore = create<ContentState>((set) => ({
       wordCount: 0,
       comments: [],
       versions: [],
-      contentHtml: '<p></p>',
+      contentHtml,
     }
     const node: PageTreeNode = { id, title, state: 'draft', children: [] }
     set((s) => ({
@@ -134,17 +163,31 @@ export const useContentStore = create<ContentState>((set) => ({
     set((s) => {
       const page = s.pages[pageId]
       if (!page) return s
-      const wasPublished = page.state !== 'draft'
-      const nextState: PageState = publish ? 'published' : wasPublished ? 'published-unpublished-changes' : 'draft'
+      const wasPublished = page.publishedHtml !== undefined
+      const nextState: PageState = publish
+        ? 'published'
+        : !wasPublished
+          ? 'draft'
+          : html === page.publishedHtml
+            ? 'published'
+            : 'published-unpublished-changes'
       const nextVersions = publish
         ? [
-            { version: (page.versions[0]?.version ?? 0) + 1, authorId: currentUser.id, relativeTime: 'Just now', comment: comment || 'Published', current: true },
+            {
+              version: (page.versions[0]?.version ?? 0) + 1,
+              authorId: currentUser.id,
+              relativeTime: 'Just now',
+              comment: comment || 'Published',
+              current: true,
+              contentHtml: html,
+            },
             ...page.versions.map((v) => ({ ...v, current: false })),
           ]
         : page.versions
       const updated: Page = {
         ...page,
         contentHtml: html,
+        publishedHtml: publish ? html : page.publishedHtml,
         updatedById: currentUser.id,
         updatedRelative: 'Just now',
         state: nextState,
@@ -156,8 +199,29 @@ export const useContentStore = create<ContentState>((set) => ({
       }
     }),
 
+  discardChanges: (pageId) =>
+    set((s) => {
+      const page = s.pages[pageId]
+      if (!page || page.publishedHtml === undefined) return s
+      return {
+        pages: { ...s.pages, [pageId]: { ...page, contentHtml: page.publishedHtml, state: 'published' } },
+        pageTree: { ...s.pageTree, [page.spaceId]: patchNodeState(s.pageTree[page.spaceId] ?? [], pageId, 'published') },
+      }
+    }),
+
   updatePageMeta: (pageId, patch) =>
-    set((s) => ({ pages: { ...s.pages, [pageId]: { ...s.pages[pageId], ...patch } } })),
+    set((s) => {
+      const page = s.pages[pageId]
+      if (!page) return s
+      const tree = s.pageTree[page.spaceId] ?? []
+      return {
+        pages: { ...s.pages, [pageId]: { ...page, ...patch } },
+        pageTree:
+          patch.title !== undefined && patch.title !== page.title
+            ? { ...s.pageTree, [page.spaceId]: patchNodeTitle(tree, pageId, patch.title) }
+            : s.pageTree,
+      }
+    }),
 
   addComment: (pageId, body, anchorText) =>
     set((s) => {
@@ -171,6 +235,22 @@ export const useContentStore = create<ContentState>((set) => ({
         anchorText,
       }
       return { pages: { ...s.pages, [pageId]: { ...page, comments: [comment, ...page.comments] } } }
+    }),
+
+  addReply: (pageId, commentId, body) =>
+    set((s) => {
+      const page = s.pages[pageId]
+      if (!page) return s
+      const reply: Comment = { id: `c-${nextId++}`, authorId: currentUser.id, body, relativeTime: 'Just now' }
+      return {
+        pages: {
+          ...s.pages,
+          [pageId]: {
+            ...page,
+            comments: page.comments.map((c) => (c.id === commentId ? { ...c, replies: [...(c.replies ?? []), reply] } : c)),
+          },
+        },
+      }
     }),
 
   toggleResolveComment: (pageId, commentId) =>
@@ -193,35 +273,94 @@ export const useContentStore = create<ContentState>((set) => ({
       const page = s.pages[pageId]
       if (!page) return s
       const target = page.versions.find((v) => v.version === version)
-      if (!target) return s
+      if (!target || target.contentHtml === undefined) return s
+      const html = target.contentHtml
       const newVersion = {
         version: (page.versions[0]?.version ?? 0) + 1,
         authorId: currentUser.id,
         relativeTime: 'Just now',
         comment: `Restored version ${version}`,
         current: true,
+        contentHtml: html,
       }
       return {
         pages: {
           ...s.pages,
           [pageId]: {
             ...page,
+            contentHtml: html,
+            publishedHtml: html,
+            state: 'published',
+            updatedById: currentUser.id,
+            updatedRelative: 'Just now',
             versions: [newVersion, ...page.versions.map((v) => ({ ...v, current: false }))],
           },
         },
+        pageTree: { ...s.pageTree, [page.spaceId]: patchNodeState(s.pageTree[page.spaceId] ?? [], pageId, 'published') },
       }
     }),
 
-  archivePage: (pageId) =>
+  movePage: (pageId, newParentId) => {
+    const { pages, pageTree } = get()
+    const page = pages[pageId]
+    if (!page || page.parentId === newParentId) return false
+    const tree = pageTree[page.spaceId] ?? []
+    const node = findTreeNodeIn(tree, pageId)
+    if (!node) return false
+    // A page cannot move under itself or one of its descendants.
+    if (newParentId !== null && collectIds(node).includes(newParentId)) return false
+    set((s) => ({
+      pages: { ...s.pages, [pageId]: { ...page, parentId: newParentId } },
+      pageTree: { ...s.pageTree, [page.spaceId]: insertNode(removeNode(tree, pageId), newParentId, node) },
+    }))
+    return true
+  },
+
+  copyPage: (pageId) => {
+    const page = get().pages[pageId]
+    if (!page) return null
+    return get().createPage(page.spaceId, page.parentId, `Copy of ${page.title}`, page.contentHtml)
+  },
+
+  archivePage: (pageId) => setSubtreeState(pageId, 'archived'),
+
+  deletePage: (pageId) => setSubtreeState(pageId, 'deleted'),
+
+  restorePage: (pageId) =>
     set((s) => {
       const page = s.pages[pageId]
-      if (!page) return s
+      if (!page || (page.state !== 'archived' && page.state !== 'deleted')) return s
+      const tree = s.pageTree[page.spaceId] ?? []
+      const parent = page.parentId ? s.pages[page.parentId] : undefined
+      const parentVisible = parent && findTreeNodeIn(tree, parent.id)
+      const parentId = parentVisible ? page.parentId : null
+      const state: PageState = page.publishedHtml === undefined ? 'draft' : 'published'
+      const node: PageTreeNode = { id: page.id, title: page.title, icon: page.icon, state, restricted: page.restricted, children: [] }
       return {
-        pages: { ...s.pages, [pageId]: { ...page, state: 'archived' } },
-        pageTree: { ...s.pageTree, [page.spaceId]: removeNode(s.pageTree[page.spaceId] ?? [], pageId) },
+        pages: { ...s.pages, [pageId]: { ...page, state, parentId } },
+        pageTree: { ...s.pageTree, [page.spaceId]: insertNode(tree, parentId, node) },
       }
     }),
 }))
+
+/** Archive or delete a page together with everything below it, and drop the subtree from the nav. */
+function setSubtreeState(pageId: string, state: 'archived' | 'deleted') {
+  useContentStore.setState((s) => {
+    const page = s.pages[pageId]
+    if (!page) return s
+    const tree = s.pageTree[page.spaceId] ?? []
+    const node = findTreeNodeIn(tree, pageId)
+    const ids = node ? collectIds(node) : [pageId]
+    const pages = { ...s.pages }
+    for (const id of ids) if (pages[id]) pages[id] = { ...pages[id], state }
+    return { pages, pageTree: { ...s.pageTree, [page.spaceId]: removeNode(tree, pageId) } }
+  })
+}
+
+/** Archived and deleted pages are hidden from lists, search and navigation menus. */
+export function isLivePage(page: Page | undefined): page is Page {
+  return !!page && page.state !== 'archived' && page.state !== 'deleted'
+}
 
 export function useSpace(spaceId: string | undefined) {
   return useContentStore((s) => s.spaces.find((sp) => sp.id === spaceId))

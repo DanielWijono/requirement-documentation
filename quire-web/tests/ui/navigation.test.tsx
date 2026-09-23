@@ -64,7 +64,7 @@ describe('routing & shell', () => {
   it('collapses and expands the space nav', async () => {
     const { user } = renderApp('/spaces/sp.eng')
     const nav = screen.getByRole('navigation', { name: 'Engineering' })
-    await user.click(within(nav).getAllByRole('button', { name: /^collapse$/i }).at(-1)!) // footer; tree chevrons share the label
+    await user.click(within(nav).getByRole('button', { name: 'Collapse navigation' }))
     expect(screen.queryByRole('navigation', { name: 'Engineering' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Expand navigation' }))
     expect(screen.getByRole('navigation', { name: 'Engineering' })).toBeInTheDocument()

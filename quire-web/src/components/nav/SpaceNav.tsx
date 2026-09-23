@@ -120,6 +120,7 @@ export function SpaceNav() {
 
       <button
         onClick={toggleNav}
+        aria-label="Collapse navigation"
         className="t-ui-sm flex items-center gap-1.5 px-3 h-9 border-t border-(--color-border-default) text-(--color-text-secondary) hover:bg-(--color-bg-hover)"
       >
         <ChevronLeft className="w-3.5 h-3.5" strokeWidth={1.5} /> Collapse

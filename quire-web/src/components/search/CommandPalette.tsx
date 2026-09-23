@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { FileText, Plus, Search, Sun, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { useContentStore } from '../../store/contentStore'
+import { isLivePage, useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { users } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
@@ -40,6 +40,7 @@ function CommandPaletteBody() {
   const close = useUIStore((s) => s.closeCommandPalette)
   const theme = useUIStore((s) => s.theme)
   const setTheme = useUIStore((s) => s.setTheme)
+  const openCreatePage = useUIStore((s) => s.openCreatePage)
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const spaces = useContentStore((s) => s.spaces)
@@ -56,7 +57,7 @@ function CommandPaletteBody() {
 
   const results: Result[] = useMemo(() => {
     if (!query.trim()) {
-      const recents: Result[] = recentlyViewed.slice(0, 5).map((r) => {
+      const recents: Result[] = recentlyViewed.filter((r) => isLivePage(pages[r.pageId])).slice(0, 5).map((r) => {
         const p = pages[r.pageId]
         return {
           id: `recent-${r.pageId}`,
@@ -74,7 +75,7 @@ function CommandPaletteBody() {
         onSelect: () => navigate(`/spaces/${s.id}`),
       }))
       const actions: Result[] = [
-        { id: 'action-create', kind: 'action', title: 'Create page', onSelect: () => navigate('/spaces') },
+        { id: 'action-create', kind: 'action', title: 'Create page', onSelect: openCreatePage },
         { id: 'action-goto', kind: 'action', title: 'Go to space…', onSelect: () => navigate('/spaces') },
         {
           id: 'action-theme',
@@ -87,7 +88,7 @@ function CommandPaletteBody() {
     }
 
     const q = query.toLowerCase()
-    const pool = Object.values(pages).filter((p) => (scope ? p.spaceId === scope : true))
+    const pool = Object.values(pages).filter((p) => isLivePage(p) && (scope ? p.spaceId === scope : true))
     const pageResults: Result[] = pool
       .filter((p) => p.title.toLowerCase().includes(q))
       .slice(0, 8)
@@ -105,7 +106,7 @@ function CommandPaletteBody() {
       .filter((u) => u.name.toLowerCase().includes(q))
       .map((u) => ({ id: `u-${u.id}`, kind: 'person', title: u.name, onSelect: () => navigate('/search') }))
     return [...pageResults, ...spaceResults, ...peopleResults]
-  }, [query, scope, pages, spaces, recentlyViewed, navigate, setTheme, theme])
+  }, [query, scope, pages, spaces, recentlyViewed, navigate, setTheme, theme, openCreatePage])
 
   function commit(index: number) {
     const r = results[index]

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { SpaceNav } from '../nav/SpaceNav'
@@ -18,8 +18,10 @@ export function AppShell() {
   const openCommandPalette = useUIStore((s) => s.openCommandPalette)
   const toggleNav = useUIStore((s) => s.toggleNav)
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
+  const openCreatePage = useUIStore((s) => s.openCreatePage)
+  const closeCreatePage = useUIStore((s) => s.closeCreatePage)
+  const createOpen = useUIStore((s) => s.createPageOpen)
   const spaces = useContentStore((s) => s.spaces)
-  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -38,12 +40,12 @@ export function AppShell() {
       } else if (e.key === ']') {
         toggleRightPanel()
       } else if (e.key.toLowerCase() === 'c') {
-        setCreateOpen(true)
+        openCreatePage()
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [openCommandPalette, toggleNav, toggleRightPanel])
+  }, [openCommandPalette, toggleNav, toggleRightPanel, openCreatePage])
 
   return (
     <div className="h-screen flex flex-col bg-(--color-bg-app)">
@@ -56,7 +58,7 @@ export function AppShell() {
       </div>
       <ToastHost />
       <CommandPalette />
-      <CreatePageModal open={createOpen} onClose={() => setCreateOpen(false)} defaultSpaceId={spaceId ?? spaces[0]?.id ?? 'sp.eng'} />
+      <CreatePageModal open={createOpen} onClose={closeCreatePage} defaultSpaceId={spaceId ?? spaces[0]?.id ?? 'sp.eng'} />
     </div>
   )
 }
