@@ -6,6 +6,7 @@ import type { RightPanelTab } from '../../store/uiStore'
 import { CommentsTab } from './CommentsTab'
 import { DetailsTab } from './DetailsTab'
 import { HistoryTab } from './HistoryTab'
+import { useReturnFocus } from '../../hooks/useReturnFocus'
 
 const TABS: { id: RightPanelTab; label: string }[] = [
   { id: 'comments', label: 'Comments' },
@@ -18,6 +19,7 @@ export function RightPanel({ page }: { page: Page }) {
   const tab = useUIStore((s) => s.rightPanelTab)
   const setTab = useUIStore((s) => s.setRightPanelTab)
   const close = useUIStore((s) => s.closeRightPanel)
+  useReturnFocus(open)
 
   if (!open) return null
 
@@ -27,7 +29,7 @@ export function RightPanel({ page }: { page: Page }) {
       <aside
         aria-label="Page panel"
         className={clsx(
-          'w-[360px] shrink-0 bg-(--color-bg-raised) border-l border-(--color-border-default) flex flex-col',
+          'w-full sm:w-[360px] shrink-0 bg-(--color-bg-raised) border-l border-(--color-border-default) flex flex-col',
           'fixed right-0 top-0 bottom-0 z-(--z-panel) lg:static lg:z-auto',
         )}
       >

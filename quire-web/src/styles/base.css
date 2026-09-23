@@ -344,3 +344,19 @@ a {
 .editor-canvas .ProseMirror img.ProseMirror-selectednode {
   outline: 2px solid var(--color-border-focus);
 }
+
+/* Skip links: hidden until focused (design.md §11). */
+.skip-link {
+  position: fixed;
+  left: 8px;
+  top: -48px;
+  z-index: 1000;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  color: var(--color-text-link);
+  box-shadow: var(--elevation-2);
+}
+.skip-link:focus {
+  top: 8px;
+}

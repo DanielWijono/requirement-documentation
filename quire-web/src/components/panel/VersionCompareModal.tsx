@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Page } from '../../types'
 import { userById } from '../../data/mockData'
 import { useEscapeKey } from '../../hooks/useClickOutside'
+import { useReturnFocus } from '../../hooks/useReturnFocus'
 import { useContentStore } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/Button'
@@ -61,6 +62,7 @@ export function VersionCompareModal({
   onClose: () => void
 }) {
   useEscapeKey(onClose, version !== null)
+  useReturnFocus(version !== null)
   const restoreVersion = useContentStore((s) => s.restoreVersion)
   const pushToast = useUIStore((s) => s.pushToast)
   const [confirmRestore, setConfirmRestore] = useState(false)
@@ -77,7 +79,7 @@ export function VersionCompareModal({
 
   return createPortal(
     <div className="fixed inset-0 z-(--z-modal) bg-(--color-bg-app) flex flex-col">
-      <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-(--color-border-default) bg-(--color-bg-canvas)">
+      <header className="min-h-12 py-2 shrink-0 flex flex-wrap items-center gap-3 px-4 border-b border-(--color-border-default) bg-(--color-bg-canvas)">
         <Button variant="subtle" iconOnly icon={<ArrowLeft strokeWidth={1.5} />} onClick={onClose} aria-label="Back" />
         <Avatar user={author} size={24} />
         <div className="t-ui-md">

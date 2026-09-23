@@ -26,8 +26,13 @@ export function Menu({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  function closeAndRefocus() {
+    setOpen(false)
+    ref.current?.querySelector<HTMLElement>('button, [tabindex]')?.focus()
+  }
+
   useClickOutside(ref, () => setOpen(false), open)
-  useEscapeKey(() => setOpen(false), open)
+  useEscapeKey(closeAndRefocus, open)
 
   const child = cloneElement(trigger, {
     onClick: (e: MouseEvent) => {
@@ -57,8 +62,8 @@ export function Menu({
                 role="menuitem"
                 disabled={item.disabled}
                 onClick={() => {
+                  closeAndRefocus()
                   item.onSelect?.()
-                  setOpen(false)
                 }}
                 className={clsx(
                   't-ui-md w-full flex items-center gap-2 h-8 px-3 text-left disabled:opacity-40',

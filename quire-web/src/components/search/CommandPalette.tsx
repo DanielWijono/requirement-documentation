@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
@@ -6,6 +6,7 @@ import { FileText, Plus, Search, Sun, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { isVisiblePage, useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
+import { useReturnFocus } from '../../hooks/useReturnFocus'
 import { users } from '../../data/mockData'
 import { Avatar } from '../ui/Avatar'
 
@@ -51,7 +52,12 @@ function CommandPaletteBody() {
   const [scope, setScope] = useState<string | null>(spaceId ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
 
+  const inputRef = useRef<HTMLInputElement>(null)
+
   useEscapeKey(close)
+  useReturnFocus()
+  // Focus after useReturnFocus has recorded the opener (autoFocus would run first and hide it).
+  useEffect(() => inputRef.current?.focus(), [])
 
   const scopeSpace = spaces.find((s) => s.id === scope)
 
@@ -135,7 +141,7 @@ function CommandPaletteBody() {
             </span>
           )}
           <input
-            autoFocus
+            ref={inputRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

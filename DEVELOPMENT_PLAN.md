@@ -5,11 +5,11 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 3
+- **Current phase:** Phase 4
 
 ## Next up
 
-1. Close the design-spec gaps (Phase 3).
+1. Testing depth (Phase 4), then performance (Phase 5).
 
 ## Git rules
 
@@ -74,44 +74,49 @@ These are bugs in features that already exist. Each fix gets a test that fails b
 
 ## Phase 3 — Gaps against the design spec
 
-Items from `design.md` that are missing or partial. Items marked (verify) weren't confirmed in the code yet.
+Items from `design.md` that were missing or partial.
 
 **Page state model (§7)**
-- [ ] "Draft" lozenge next to the title on draft pages
-- [ ] Small dot after the title in the tree for pages with unpublished changes
-- [ ] Archive view in the space that lists archived pages and offers Restore. Show archived images at 70% opacity.
-- [ ] 403 screen, separate from the 404 one, that never reveals the page title
+- [x] "Draft" lozenge next to the title on draft pages
+- [x] Small dot after the title in the tree for pages with unpublished changes
+- [x] Archive view in the space (`/spaces/:id/archive`, "Archived pages" in the nav) with Restore; archived images shown at 70% opacity
+- [x] 403 screen, separate from the 404 one, that never reveals the page title. Restricted pages now have `viewerIds`; forbidden pages are hidden from lists, search and link previews.
 
 **Create flow (§8.4)**
-- [ ] The tree row `+` creates a blank child draft directly, without the modal (quick path)
-- [ ] Template preview in the modal, and default the parent to the current page's context
-- [ ] Templates prefill the page body (right now only the title changes)
+- [x] The tree row `+` creates a blank child draft directly, without the modal (quick path)
+- [x] Template preview (section outline) in the modal; the parent defaults to the current page's parent context; ⌘Enter creates a blank page
+- [x] Templates prefill the page body (`src/data/templates.ts`)
 
 **Version compare (§8.6)**
-- [ ] Replace the illustrative diff in `VersionCompareModal` with a real diff between the version snapshot and the current body
+- [x] Real word-level diff (`src/lib/diff.ts`) between the version snapshot and the live body: unified below `lg`, side by side at `lg`, with +/− glyphs
 
 **Search (§8.5)**
-- [ ] Filters for Type, Last modified and Labels (Space and Contributor exist)
-- [ ] Result snippets with highlights, a breadcrumb, and relevance or last-modified sorting
-- [ ] The zero-result state names the filter to remove
+- [x] Filters for Type, Last modified and Labels (as well as Space and Contributor); the query lives in the URL
+- [x] Result snippets with highlights, a breadcrumb, and relevance or last-modified sorting (real ages via `src/lib/relativeTime.ts`)
+- [x] The zero-result state names the most restrictive filter and offers to remove it
 
 **Space (§8.3, §8.8)**
-- [ ] Space overview header: Star, Watch, the ⋯ menu, and page and member counts (verify)
-- [ ] Space settings: make the Permissions matrix, Labels and Archive tabs work, and make "Delete space" actually delete
+- [x] Space overview header: live page count, Star, Watch, and Export space (JSON)
+- [x] Space settings: Details form, Permissions matrix, Templates, Labels, Archive/Restore space, and Delete space (after typing the key) all work
 
 **Editor (§6.5–6.9, §9)**
-- [ ] Editor keyboard shortcuts from §9.1 (verify Tiptap's defaults: `⌘⌥1–4`, `⌘⇧7/8/9`, `⌘K` link override)
-- [ ] Esc twice moves focus to the toolbar; the toolbar uses roving tabindex
-- [ ] Inline comment anchors are highlighted in the page body, and clicking one opens its thread
-- [ ] Link hover preview cards and smart-link chips on paste (§9.4)
-- [ ] Structural conflict banner, for example "Page was moved" (§9.3). Can wait until there's a backend.
+- [x] Editor keyboard shortcuts from §9.1. Tiptap's defaults cover headings, lists and code blocks; added ⌘\` inline code and a ⌘K link prompt that overrides the palette.
+- [x] Esc moves focus to the toolbar (the first Esc closes the slash menu); the toolbar uses roving tabindex
+- [x] Inline comment anchors are highlighted in the page body, and clicking one opens and highlights its thread. "M" comments on the selected text.
+- [x] Link hover preview cards (400 ms) and smart-link chips on paste (⌘Z reverts to the plain URL) (§9.4)
+- [ ] Structural conflict banner, for example "Page was moved" (§9.3). **Moved to Phase 6:** it needs other users making concurrent changes, which only a backend can produce.
 
 **States and accessibility (§10–11)**
-- [ ] Loading skeletons for the page, tree and panels (respect reduced motion)
-- [ ] Skip links: "Skip to content" and "Skip to page tree"
-- [ ] Tree: add `aria-setsize` and `aria-posinset`, plus arrow-key navigation
-- [ ] Focus returns to the control that opened a panel or modal (audit each one)
-- [ ] 320 px reflow and 200% zoom check
+- [x] Loading skeleton that mirrors the page layout (`PageSkeleton`, pulses only when motion is allowed). With local data nothing loads asynchronously; it is used as the fallback for lazy-loaded routes (Phase 5). Tree and panel skeletons wait for a backend.
+- [x] Skip links: "Skip to content" and "Skip to page tree"
+- [x] Tree: `aria-setsize`, `aria-posinset`, roving tabindex, and arrow/Home/End/Enter keyboard navigation
+- [x] Focus returns to the control that opened a panel, palette, menu, modal or the version compare view
+- [~] 320 px reflow and 200% zoom. Fixed-width overflows found in code review are fixed (right panel, search filters, create modal, toasts, compare header). **Not visually verified in a real browser yet**, because browser automation was out of scope for this pass.
+
+**Found and fixed along the way**
+- [x] Infinite re-render when a space had no tree (`usePageTree` returned a new `[]` on every call)
+- [x] Spaces directory "Recently active" sorted relative-time labels alphabetically
+- [x] Modal and palette focus return broke when a child used `autoFocus`; initial focus is now owned by the container
 
 ## Phase 4 — Testing depth
 
@@ -149,6 +154,7 @@ These are only needed if Quire goes beyond a local prototype.
 
 ## Changelog
 
+- **2026-09-23:** Phase 3 done: the page state model, create flow, version diff, search, space screens, editor keyboard and smart links, comment anchors, link previews, and accessibility (skip links, tree keyboard, focus return). Tests: 155, all passing.
 - **2026-09-23:** Phase 2 done. Content and UI preferences are saved in `localStorage` with a versioned schema and migration, plus a dev-only reset. Tests: 87, all passing.
 - **2026-09-23:** Phase 1 done. Discard now reverts; replies are saved; restoring a version restores its content; all page and tree menu actions work (Copy link, Move, Copy, Archive with Undo, Delete with confirmation and a restorable Trash screen); the Create dialog is shared by the shell. Also fixed 1.7 to 1.10, found along the way. Tests: 81, all passing.
 - **2026-09-23:** Phase 0 done. Pushed the repo to GitHub, added `npm run check`, cleared all 18 lint warnings (lint is now at 0), and added a palette-reset test.

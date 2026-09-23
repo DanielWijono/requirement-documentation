@@ -53,10 +53,20 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col bg-(--color-bg-app)">
+      <nav aria-label="Skip links" className="contents">
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+        {spaceId && (
+          <a href="#page-tree" className="skip-link">
+            Skip to page tree
+          </a>
+        )}
+      </nav>
       <TopBar />
       <div className="flex-1 flex min-h-0">
         {spaceId && <SpaceNav />}
-        <main className="flex-1 min-w-0 min-h-0 flex">
+        <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 min-h-0 flex outline-none">
           <Outlet />
         </main>
       </div>

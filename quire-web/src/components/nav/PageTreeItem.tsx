@@ -14,12 +14,16 @@ export function PageTreeItem({
   depth,
   activePageId,
   ancestorIds,
+  posInSet,
+  setSize,
 }: {
   node: PageTreeNode
   spaceId: string
   depth: number
   activePageId?: string
   ancestorIds: Set<string>
+  posInSet: number
+  setSize: number
 }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(ancestorIds.has(node.id) || depth === 0)
@@ -35,9 +39,17 @@ export function PageTreeItem({
     <div>
       <div
         role="treeitem"
+        data-id={node.id}
         aria-expanded={hasChildren ? expanded : undefined}
         aria-level={depth + 1}
+        aria-posinset={posInSet}
+        aria-setsize={setSize}
         aria-selected={isActive}
+        aria-label={node.title}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/spaces/${spaceId}/pages/${node.id}`)
+        }}
         className={clsx(
           'group flex items-center h-[var(--tree-row-height)] rounded-(--radius-sm) cursor-pointer relative t-ui-md',
           isActive ? 'bg-(--color-bg-selected) font-medium' : 'hover:bg-(--color-bg-hover)',
@@ -56,6 +68,7 @@ export function PageTreeItem({
             !hasChildren && 'invisible',
           )}
           aria-label={expanded ? 'Collapse' : 'Expand'}
+          tabIndex={-1}
         >
           <ChevronRight className={clsx('w-3.5 h-3.5 transition-transform', expanded && 'rotate-90')} strokeWidth={1.75} />
         </button>
@@ -97,9 +110,11 @@ export function PageTreeItem({
       </div>
       {expanded && hasChildren && (
         <div role="group">
-          {node.children.map((child) => (
+          {node.children.map((child, i) => (
             <PageTreeItem
               key={child.id}
+              posInSet={i + 1}
+              setSize={node.children.length}
               node={child}
               spaceId={spaceId}
               depth={depth + 1}

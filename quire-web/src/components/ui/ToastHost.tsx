@@ -16,7 +16,7 @@ export function ToastHost() {
   if (toasts.length === 0) return null
 
   return createPortal(
-    <div className="fixed bottom-4 left-4 z-(--z-toast) flex flex-col gap-2 w-[320px]">
+    <div className="fixed bottom-4 left-4 z-(--z-toast) flex flex-col gap-2 w-[min(320px,calc(100vw-2rem))]">
       {toasts.slice(-3).map((t) => (
         <div
           key={t.id}

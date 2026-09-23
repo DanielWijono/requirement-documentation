@@ -51,7 +51,7 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
           <div className="grow">
             <label className="t-ui-md-medium block mb-1.5">Name</label>
             <input
-              autoFocus
+              data-autofocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Design"

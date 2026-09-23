@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMemo, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import { Archive, ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
@@ -20,6 +20,8 @@ export function SpaceNav() {
   const setNavWidth = useUIStore((s) => s.setNavWidth)
   const [createOpen, setCreateOpen] = useState(false)
   const dragging = useRef(false)
+  const treeRef = useRef<HTMLDivElement>(null)
+  const [focusedId, setFocusedId] = useState<string | null>(null)
   // Below `md` the tree becomes a drawer (design.md §3.4) instead of a docked, resizable rail.
   const isDrawer = useMediaQuery('(max-width: 959px)')
 
@@ -27,6 +29,61 @@ export function SpaceNav() {
     if (!pageId || !spaceId) return new Set<string>()
     return new Set(ancestorChainIn(tree, pageId).map((n) => n.id))
   }, [tree, pageId, spaceId])
+
+  function treeRows() {
+    return [...(treeRef.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])]
+  }
+
+  // Roving tabindex (WAI-ARIA tree pattern): one row is tabbable — the focused row, else the current page, else the first.
+  useEffect(() => {
+    const rows = treeRows()
+    const target = rows.find((r) => r.dataset.id === focusedId) ?? rows.find((r) => r.getAttribute('aria-selected') === 'true') ?? rows[0]
+    rows.forEach((r) => {
+      r.tabIndex = r === target ? 0 : -1
+    })
+  })
+
+  function focusRow(row: HTMLElement | undefined) {
+    if (!row) return
+    setFocusedId(row.dataset.id ?? null)
+    row.focus()
+  }
+
+  function onTreeKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const rows = treeRows()
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]')
+    const i = row ? rows.indexOf(row) : -1
+    if (!row || i === -1) return
+    const expanded = row.getAttribute('aria-expanded')
+    const toggle = () => row.querySelector<HTMLElement>('button[aria-label="Expand"], button[aria-label="Collapse"]')?.click()
+    const parentRow = () => row.parentElement?.parentElement?.closest('[role="group"]')?.previousElementSibling as HTMLElement | undefined
+
+    switch (e.key) {
+      case 'ArrowDown':
+        focusRow(rows[i + 1])
+        break
+      case 'ArrowUp':
+        focusRow(rows[i - 1])
+        break
+      case 'Home':
+        focusRow(rows[0])
+        break
+      case 'End':
+        focusRow(rows.at(-1))
+        break
+      case 'ArrowRight':
+        if (expanded === 'false') toggle()
+        else if (expanded === 'true') focusRow(rows[i + 1])
+        break
+      case 'ArrowLeft':
+        if (expanded === 'true') toggle()
+        else focusRow(parentRow())
+        break
+      default:
+        return
+    }
+    e.preventDefault()
+  }
 
   if (!space) return null
 
@@ -103,7 +160,19 @@ export function SpaceNav() {
         </button>
       </div>
 
-      <div role="tree" className="flex-1 overflow-y-auto px-2 pb-2">
+      <div
+        ref={treeRef}
+        id="page-tree"
+        role="tree"
+        aria-label={`${space.name} pages`}
+        tabIndex={tree.length === 0 ? -1 : undefined}
+        onKeyDown={onTreeKeyDown}
+        onFocus={(e) => {
+          const row = (e.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]')
+          if (row?.dataset.id) setFocusedId(row.dataset.id)
+        }}
+        className="flex-1 overflow-y-auto px-2 pb-2"
+      >
         {tree.length === 0 ? (
           <button
             onClick={() => setCreateOpen(true)}
@@ -113,8 +182,8 @@ export function SpaceNav() {
             <span className="t-ui-sm">This space has no pages yet</span>
           </button>
         ) : (
-          tree.map((node) => (
-            <PageTreeItem key={node.id} node={node} spaceId={spaceId!} depth={0} activePageId={pageId} ancestorIds={ancestorIds} />
+          tree.map((node, i) => (
+            <PageTreeItem key={node.id} posInSet={i + 1} setSize={tree.length} node={node} spaceId={spaceId!} depth={0} activePageId={pageId} ancestorIds={ancestorIds} />
           ))
         )}
       </div>

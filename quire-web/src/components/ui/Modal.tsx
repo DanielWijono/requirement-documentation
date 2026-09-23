@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
 import { useEscapeKey } from '../../hooks/useClickOutside'
+import { useReturnFocus } from '../../hooks/useReturnFocus'
 import { Button } from './Button'
 
 const WIDTHS = { confirm: 400, form: 600, picker: 800 } as const
@@ -27,20 +28,16 @@ export function Modal({
   initialFocusDangerous?: boolean
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
-
   useEscapeKey(onClose, open)
+  useReturnFocus(open)
 
   useEffect(() => {
     if (!open) return
-    returnFocusRef.current = document.activeElement as HTMLElement
     const target = initialFocusDangerous
       ? dialogRef.current?.querySelector<HTMLElement>('[data-cancel]')
-      : dialogRef.current?.querySelector<HTMLElement>('input,textarea,select,[data-autofocus]')
+      : // Initial focus is owned here (not via autoFocus) so the opener is recorded before focus moves.
+        (dialogRef.current?.querySelector<HTMLElement>('[data-autofocus]') ?? dialogRef.current?.querySelector<HTMLElement>('input,textarea,select'))
     ;(target ?? dialogRef.current)?.focus()
-    return () => {
-      returnFocusRef.current?.focus?.()
-    }
   }, [open, initialFocusDangerous])
 
   if (!open) return null
