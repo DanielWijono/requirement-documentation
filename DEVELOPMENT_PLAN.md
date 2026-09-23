@@ -5,11 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6 (blocked on a decision)
+- **Current phase:** Phase 6a (backend scaffold). Needs Docker Desktop installed first.
 
 ## Next up
 
-1. **Owner decision:** stay local-only, or build the backend (Phase 6)? Everything else in this plan is done.
+1. **Prerequisite:** install Docker Desktop (Postgres, the test database and Mailpit run in Docker Compose). `docker` isn't on this machine yet.
+2. Phase 6a: scaffold (npm workspaces, `quire-shared`, `quire-api` health route, `compose.yaml`, test database harness).
 
 ## Git rules
 
@@ -81,7 +82,7 @@ These are bugs in features that already exist. Each fix gets a test that fails b
 - [x] Save `contentStore` (and the UI preferences theme, density, reading font and nav width) to `localStorage` with Zustand `persist`, and include a schema version for future migrations. Keys: `quire.content` (schema v1, with a v0→v1 migration) and `quire.ui`. The id counter advances past saved ids after loading.
 - [x] Reset-to-seed action (dev only) for demos: Account menu → "Reset demo data"
 - [x] Tests: data survives a store reload, and old schema versions migrate (`tests/unit/persistence.test.ts`)
-- [ ] **Decision needed (owner):** stay local-only, or add a backend (see Phase 6)? Still open, and it blocks Phase 6.
+- [x] **Decision (owner):** build a self-hosted backend. See Phase 6.
 
 ## Phase 3 — Gaps against the design spec
 
@@ -152,14 +153,67 @@ Items from `design.md` that were missing or partial.
   - Verified with React Profiler render counts (`tests/unit/renders.test.tsx`): autosaves cause 0 commits in `SpaceNav` and `TopBar`.
   - Left as is: `Home`, `SearchResults`, `SpaceOverview`, `SpaceArchive`, `SpaceSettings` and the Share dialog subscribe to all pages, but none of them are mounted while someone is editing, so their data only changes through their own actions.
 
-## Phase 6 — Backend (optional, needs a decision)
+## Phase 6 — Backend
 
-These are only needed if Quire goes beyond a local prototype.
+Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backend.
 
-- [ ] API design: spaces, pages, versions, comments, permissions
-- [ ] Auth and the per-page restrictions model (§8.7)
-- [ ] Real-time collaboration (Tiptap + Yjs), presence, and the conflict banner
-- [ ] Server-side search
+### Decisions
+- **Stack:** Node + Postgres 16. Hono (API), Drizzle ORM + drizzle-kit migrations, Better Auth. Docker Compose locally now; the same compose file later runs on a VPS behind Caddy.
+  - Chosen over hosted Supabase and Firebase: no lock-in, fixed cost, Postgres full-text search, and the later Yjs co-editing server runs on the same box.
+- **Layout:** npm workspaces at the repo root with `packages/quire-shared` (zod schemas, types, `evaluateAccess`, `relativeTime`), `quire-api/` and `quire-web/`.
+- **Accounts:** one workspace, invite-only, email + password.
+- **Email:** Mailpit in dev (a fake inbox at `localhost:8025`); any SMTP provider in production via `SMTP_*` env vars.
+- **Permissions:** users + groups, enforced by the API only.
+  - The space matrix (§8.8): users/groups × View, Add, Edit, Delete, Comment, Admin.
+  - Page restrictions (§8.7): **view restrictions are inherited** by child pages; **edit restrictions are not** (Confluence-style).
+  - Drafts are visible only to their author and collaborators (§6.3).
+- **Saving:** the first release uses save/publish with conflict detection (If-Match → 409). Real-time co-editing comes in 6l.
+- **Data:** `mockData.ts` becomes a dev-only seed script. Production starts empty; nothing is imported from `localStorage`.
+- **Frontend data access:** TanStack Query v5 plus a typed `apiClient.ts`. `contentStore` actions become mutation hooks; selectors become query hooks with the same names. `uiStore` stays.
+- **Tests:** still Vitest only, no Playwright.
+  - API tests run against a real Postgres (`postgres-test` compose service on tmpfs, port 5433).
+  - Web tests run against an MSW in-memory fake backend.
+  - A shared contract suite runs against both, so the fake can't drift from the real API.
+
+### Permission rule (`evaluateAccess`, in `quire-shared`)
+1. Principals are the user plus their groups (every active user is in the system `members` group). Space permissions are the union of their rows; the space owner and site admins get everything; `Admin` implies the rest.
+2. **View:** space `View`; for drafts, the author or a collaborator; for archived/deleted pages, `Admin` or `Delete`; and for every ancestor-or-self page with a view list, the user or one of their groups is on it.
+3. **Edit:** view, plus space `Edit`, plus this page's own edit list if it has one.
+4. **Comment:** view + `Comment`. **Create child:** `Add` + edit on the parent. **Delete/archive:** `Delete` or page owner. **Change restrictions:** edit. **Change the permissions matrix:** `Admin`.
+5. A page in a space you can't view returns 404; a restricted page returns 403 (the existing `Forbidden.tsx`). List endpoints filter in SQL, never in JS after pagination.
+
+### Database outline
+- Auth: Better Auth `user` (+ `color_seed`, `site_role`, `deactivated_at`), `session`, `account`, `verification`; `invites`; `groups`, `group_members`.
+- Spaces: `spaces` (`key citext` unique), `space_permissions` (principal type/id, `perms[]`).
+- Pages: `pages` (`parent_id`, fractional `position`, `status`, `published_version`, `lock_version`, `body_text`, generated `search tsvector` with GIN, trigram index on title), `page_drafts` (`rev`), `page_versions`, `page_restrictions`, `page_collaborators`.
+- Other: `comments` (one reply level, enforced by trigger), `page_labels`, and per-user `stars`, `watches`, `recent_views`.
+- Timestamps are ISO dates; the client formats them.
+- HTML is sanitized on the server with an allowlist matching the Tiptap schema.
+
+### Sub-phases (branch `phase-6x-<slug>` each)
+- [ ] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
+- [ ] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
+- [ ] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
+- [ ] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
+- [ ] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
+- [ ] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
+- [ ] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
+- [ ] **6h web foundation:** `apiClient`, QueryClient, MSW fake + contract suite, providers in `renderApp`, `useSession` replacing `currentUser` (10 files), Login / Accept invite / Forgot and Reset password routes, route guard, Vite proxy `/api` → `:3000`.
+- [ ] **6i web reads:** spaces, tree, page view, home, history and details from queries.
+- [ ] **6j web writes:** mutations; honest save states (§6.5: Saving…, Saved, Offline, Couldn't save – retry); blocking confirm only for unsent changes (§9.2); 409 shows a non-dismissible banner (Reload / Copy my changes).
+- [ ] **6k web rest:** server search and palette, settings and permissions matrix, share modal with inherited restrictions; remove `contentStore` persist/migrate, `persistence.test.ts` and `mockData` from the app bundle.
+- [ ] **6l realtime:** Hocuspocus service, Yjs doc per draft, Tiptap Collaboration/Caret, presence avatars, structural-event banner (§9.3, moved here from Phase 3), comment anchors on Yjs relative positions.
+- [ ] **6m deploy:** `compose.prod.yaml` with Caddy (TLS, static web, `/api` and `/collab` proxy, CSP), migration job, nightly `pg_dump` with a restore runbook, SMTP config, env docs. Smoke-tested locally; no VPS yet.
+
+### Phase 6 quality gates
+Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `quire-web`), with `docker compose up -d postgres postgres-test mailpit` running for API tests. Coverage thresholds are set per package. From 6h on, also check by hand: `npm run dev`, `db:seed`, log in as the seeded admin, invite a user through Mailpit, and confirm a restricted page is hidden from them.
+
+### Risks
+- Fake vs real API drift: the contract suite is required for every new route.
+- Test churn as data turns async: migrate one route family per sub-phase.
+- Deep trees slowing the restriction query: index `parent_id`; add an `ltree` path only if measured.
+- Stored XSS through page HTML: server-side sanitizing plus CSP.
+- Better Auth / Drizzle version changes: pin versions and commit generated schema.
 
 ---
 
@@ -172,10 +226,11 @@ These are only needed if Quire goes beyond a local prototype.
 | 3 | Serif body text by default | Serif is the default for now |
 | 4 | Blog posts in v1 | Open. There's an empty-state route; consider deferring. |
 | 5 | Comment threading depth | One level proposed, and needed for 1.2 |
-| 6 | Local-only vs backend | Open. Blocks Phase 6. |
+| 6 | Local-only vs backend | **Decided:** self-hosted backend (Node + Postgres), see Phase 6 |
 
 ## Changelog
 
+- **2026-09-23:** Phase 6 planned: self-hosted Node + Postgres backend (Hono, Drizzle, Better Auth), invite-only with email + password, users + groups permissions with view-only inheritance, Mailpit/SMTP email, co-editing later (6l), deploy last (6m).
 - **2026-09-23:** Author name changed from "Silverius Daniel Wijono" to "Daniel Wijono" on every commit (history replayed, code unchanged) and pinned in repo config.
 - **2026-09-23:** The old repository contained commits authored with the work email. It was deleted, history was replayed with `danielwijono999@gmail.com` as author and committer (code unchanged), and pushed to the new `requirement-documentation` repository. Added the commit-identity rule above.
 - **2026-09-23:** Phase 5 done: the lazy editor route cut the initial bundle by 55%, and autosave no longer re-renders the nav or top bar (verified with render counts). Tests: 187, all passing.
