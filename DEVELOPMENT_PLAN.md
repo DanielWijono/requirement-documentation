@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6g (search).
+- **Current phase:** Phase 6h (web foundation).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6g: `GET /search` with `websearch_to_tsquery` + `ts_rank` + `ts_headline` snippets, trigram title matches for the palette, filters (space, type, contributor, modified, label), cursor paging, all through `visiblePagesSql`.
+2. Phase 6h: web `apiClient` + TanStack Query, MSW fake backend using the shared `evaluatePageAccess`, contract suite run against fake and real API, `useSession` replacing `currentUser`, Login / Accept invite / Forgot and Reset password routes, route guard, Vite proxy `/api` → `:3000`.
 
 ## Git rules
 
@@ -207,7 +207,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - [x] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
 - [x] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
 - [x] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
-- [ ] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
+- [x] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
 - [ ] **6h web foundation:** `apiClient`, QueryClient, MSW fake + contract suite, providers in `renderApp`, `useSession` replacing `currentUser` (10 files), Login / Accept invite / Forgot and Reset password routes, route guard, Vite proxy `/api` → `:3000`.
 - [ ] **6i web reads:** spaces, tree, page view, home, history and details from queries.
 - [ ] **6j web writes:** mutations; honest save states (§6.5: Saving…, Saved, Offline, Couldn't save – retry); blocking confirm only for unsent changes (§9.2); 409 shows a non-dismissible banner (Reload / Copy my changes).
@@ -224,6 +224,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 - Deep trees slowing the restriction query: index `parent_id`; add an `ltree` path only if measured.
 - Stored XSS through page HTML: server-side sanitizing plus CSP.
 - Better Auth / Drizzle version changes: pin versions and commit generated schema.
+- Web UI flake (seen once, 2026-09-24, during the full `npm run check`): `axe … share dialog` and `Page actions > Delete asks for confirmation` failed together, then passed in 3 reruns. Watch it; both tests are rewritten against the API in 6i–6k anyway.
 
 ---
 
@@ -240,6 +241,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-24:** Phase 6g done: `GET /search` (`websearch_to_tsquery` with stemming, `ts_rank` + title trigram similarity, typo-tolerant titles, `ts_headline` snippets returned as plain-text parts, never HTML), filters (space, type, contributor, modified, label) with per-filter `relaxed` counts, offset cursors; `GET /search/quick` for the palette (title prefix first, own drafts included, matching spaces). Restricted pages, drafts and hidden spaces never appear or count. Tests: shared 58, api 143.
 - **2026-09-24:** Phase 6f done: comments (threads one level deep; replying to a reply joins its thread; author-only edits; author or space admin soft-deletes, with a placeholder kept while replies exist; resolve/reopen on threads), labels (`PUT /pages/:id/labels` normalizes to lower-case-with-dashes; `GET /labels?q` counts only visible pages), `POST /pages/:id/views`, `GET /me/recent|starred|drafts`. Tests: shared 56, api 135.
 - **2026-09-24:** Phase 6e done: lazy page tree and trash listing, page CRUD, drafts with If-Match `rev`, publish and version restore with If-Match `lock_version` (428 without it, 409 with the current page on a conflict), versions, move (index-based fractional positions, cycle and cross-space checks), copy, subtree archive/delete/restore, restrictions with inherited view lists shown read-only, draft collaborators, page stars and watches, server-side HTML sanitizing. Tests: shared 54, api 125 (two concurrent publishes give 200 + 409).
 - **2026-09-24:** Phase 6d done: pure `evaluateSpaceAccess` / `evaluatePageAccess` in `quire-shared` (31 table cases), API access service (ancestor-chain recursive CTE, SQL list filters checked against the evaluator), spaces CRUD, archive/unarchive, permissions matrix (`GET|PUT /spaces/:key/permissions`), stars and watches, 404 for hidden spaces. Tests: shared 50, api 99 including a route × role matrix over seven roles.

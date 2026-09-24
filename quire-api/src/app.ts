@@ -13,6 +13,7 @@ import { home, labels } from './routes/home.ts'
 import { health } from './routes/health.ts'
 import { invites } from './routes/invites.ts'
 import { pages } from './routes/pages.ts'
+import { search } from './routes/search.ts'
 import { spaces } from './routes/spaces.ts'
 import { me, users } from './routes/users.ts'
 
@@ -56,6 +57,7 @@ export function createApp(deps: AppDeps) {
   app.route('/pages', pages)
   app.route('/comments', comments)
   app.route('/labels', labels)
+  app.route('/search', search)
 
   app.notFound((c) => c.json<ApiErrorBody>({ code: 'not_found', message: 'Not found' }, 404))
   app.onError((err, c) => {

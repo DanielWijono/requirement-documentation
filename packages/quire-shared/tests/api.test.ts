@@ -8,6 +8,8 @@ import {
   pageCreateSchema,
   pageMoveSchema,
   pagePatchSchema,
+  parseSnippet,
+  searchQuerySchema,
   publishSchema,
   spaceCreateSchema,
   spacePatchSchema,
@@ -66,5 +68,22 @@ describe('comment and label inputs', () => {
   it('trims comments and defaults the anchor', () => {
     expect(commentCreateSchema.parse({ body: ' Hi ' })).toEqual({ body: 'Hi', anchorText: null })
     expect(commentCreateSchema.safeParse({ body: ' ' }).success).toBe(false)
+  })
+})
+
+describe('search inputs', () => {
+  it('drops empty filters and applies defaults', () => {
+    expect(searchQuerySchema.parse({ q: ' plan ', space: '', limit: '5' })).toEqual({ q: 'plan', sort: 'relevance', limit: 5 })
+    expect(searchQuerySchema.safeParse({ limit: '500' }).success).toBe(false)
+  })
+
+  it('splits marked snippets into plain parts', () => {
+    expect(parseSnippet('the \u0001plan\u0002 for <b>\u0001plans\u0002')).toEqual([
+      { text: 'the ', match: false },
+      { text: 'plan', match: true },
+      { text: ' for <b>', match: false },
+      { text: 'plans', match: true },
+    ])
+    expect(parseSnippet('')).toEqual([])
   })
 })

@@ -327,3 +327,84 @@ export interface StarredDto {
   spaces: SpaceDto[]
   pages: PageItemDto[]
 }
+
+// ---------------------------------------------------------------------------
+// Search
+
+export const SEARCH_MODIFIED = { today: 1, week: 7, month: 30 } as const
+const optionalParam = z
+  .string()
+  .trim()
+  .transform((v) => (v === '' ? undefined : v))
+  .optional()
+
+export const searchQuerySchema = z.object({
+  q: z.string().trim().max(200).default(''),
+  space: optionalParam,
+  type: z.enum(['page', 'blog']).optional(),
+  contributor: optionalParam,
+  modified: z.enum(['today', 'week', 'month']).optional(),
+  label: optionalParam,
+  sort: z.enum(['relevance', 'modified']).default('relevance'),
+  cursor: optionalParam,
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+})
+export type SearchQuery = z.input<typeof searchQuerySchema>
+export const SEARCH_FILTERS = ['space', 'type', 'contributor', 'modified', 'label'] as const
+export type SearchFilter = (typeof SEARCH_FILTERS)[number]
+
+/** A run of snippet text; `match` marks the words that matched the query. Plain text, never HTML. */
+export interface SnippetPart {
+  text: string
+  match: boolean
+}
+
+export interface SearchResultDto {
+  id: string
+  title: string
+  icon: string | null
+  spaceKey: string
+  spaceName: string
+  isBlogPost: boolean
+  ownerId: string
+  updatedById: string
+  updatedAt: string
+  labels: string[]
+  snippet: SnippetPart[]
+}
+
+export interface SearchResponseDto {
+  results: SearchResultDto[]
+  total: number
+  nextCursor: string | null
+  /** For each active filter, how many results there would be without it. */
+  relaxed: Partial<Record<SearchFilter, number>>
+}
+
+/** The command palette: quick title matches. */
+export interface QuickSearchDto {
+  pages: { id: string; title: string; icon: string | null; spaceKey: string; spaceName: string }[]
+  spaces: { key: string; name: string; icon: string }[]
+}
+
+/** Split `ts_headline` output that uses \u0001 / \u0002 as start and stop markers. */
+export const SNIPPET_START = '\u0001'
+export const SNIPPET_STOP = '\u0002'
+
+export function parseSnippet(marked: string): SnippetPart[] {
+  const parts: SnippetPart[] = []
+  let text = ''
+  let match = false
+  const flush = () => {
+    if (text) parts.push({ text, match })
+    text = ''
+  }
+  for (const ch of marked) {
+    if (ch === SNIPPET_START || ch === SNIPPET_STOP) {
+      flush()
+      match = ch === SNIPPET_START
+    } else text += ch
+  }
+  flush()
+  return parts
+}
