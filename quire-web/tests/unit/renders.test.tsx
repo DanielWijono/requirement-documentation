@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { useContentStore } from '../../src/store/contentStore'
 import { SpaceNav } from '../../src/components/nav/SpaceNav'
 import { TopBar } from '../../src/components/shell/TopBar'
+import { TestProviders } from '../TestProviders'
 
 const content = () => useContentStore.getState()
 
@@ -13,18 +14,20 @@ const content = () => useContentStore.getState()
 function renderCounting(ui: ReactNode) {
   const counter = { commits: 0 }
   render(
-    <MemoryRouter initialEntries={['/spaces/sp.eng/pages/pg.onboarding']}>
-      <Routes>
-        <Route
-          path="/spaces/:spaceId/pages/:pageId"
-          element={
-            <Profiler id="probe" onRender={() => counter.commits++}>
-              {ui}
-            </Profiler>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <TestProviders>
+      <MemoryRouter initialEntries={['/spaces/sp.eng/pages/pg.onboarding']}>
+        <Routes>
+          <Route
+            path="/spaces/:spaceId/pages/:pageId"
+            element={
+              <Profiler id="probe" onRender={() => counter.commits++}>
+                {ui}
+              </Profiler>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </TestProviders>,
   )
   counter.commits = 0
   return counter

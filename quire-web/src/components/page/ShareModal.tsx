@@ -6,7 +6,8 @@ import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { useUIStore } from '../../store/uiStore'
 import { ancestorChainIn, useContentStore, usePageTree } from '../../store/contentStore'
-import { currentUser, userById, users } from '../../data/mockData'
+import { userById, users } from '../../data/mockData'
+import { useCurrentUser } from '../../hooks/useSession'
 import { pageUrl } from './usePageActions'
 import type { Page } from '../../types'
 
@@ -19,9 +20,9 @@ function initialScope(page: Page): Scope {
 }
 
 /** People listed on the page (other than you), with the role each one has. */
-function initialPeople(page: Page): { id: string; role: Role }[] {
+function initialPeople(page: Page, meId: string): { id: string; role: Role }[] {
   const ids = new Set([...(page.viewerIds ?? []), ...(page.editorIds ?? [])])
-  ids.delete(currentUser.id)
+  ids.delete(meId)
   return [...ids].map((id) => ({ id, role: !page.editorIds || page.editorIds.includes(id) ? 'edit' : 'view' }))
 }
 
@@ -31,13 +32,14 @@ export function ShareModal({ page, open, onClose }: { page: Page; open: boolean;
 }
 
 function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) {
+  const currentUser = useCurrentUser()
   const navigate = useNavigate()
   const updatePageMeta = useContentStore((s) => s.updatePageMeta)
   const pages = useContentStore((s) => s.pages)
   const tree = usePageTree(page.spaceId)
   const pushToast = useUIStore((s) => s.pushToast)
   const [scope, setScope] = useState<Scope>(initialScope(page))
-  const [people, setPeople] = useState(initialPeople(page))
+  const [people, setPeople] = useState(() => initialPeople(page, currentUser.id))
   const url = pageUrl(page)
 
   const inherited = ancestorChainIn(tree, page.id)

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeEach, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
 // jsdom has no matchMedia; uiStore reads it at import time. Default to a desktop viewport.
@@ -24,12 +24,23 @@ if (!Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => new DOMRect()
 }
 
+const { fakeDb, SEED_ADMIN_ID, SESSION_COOKIE } = await import('./fakeApi/db')
+const { server } = await import('./fakeApi/server')
+const { clearCookies } = await import('./cookies')
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterAll(() => server.close())
+
 const { useContentStore } = await import('../src/store/contentStore')
 const { useUIStore } = await import('../src/store/uiStore')
 const initialContent = useContentStore.getState()
 const initialUI = useUIStore.getState()
 
 beforeEach(() => {
+  // Each test starts as the seeded admin in a signed-in browser, like the demo data does.
+  fakeDb.reset()
+  clearCookies()
+  document.cookie = `${SESSION_COOKIE}=${fakeDb.createSession(SEED_ADMIN_ID)}; Path=/`
   localStorage.clear()
   useContentStore.setState(initialContent, true)
   useUIStore.setState(initialUI, true)
@@ -38,5 +49,6 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  server.resetHandlers()
   vi.useRealTimers()
 })

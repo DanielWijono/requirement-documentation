@@ -575,3 +575,11 @@ export const followingFeed = [
     summary: 'Reordered priorities to put the editor rewrite ahead of search.',
   },
 ]
+
+/** Every seeded person signs in with this password. Development and tests only. */
+export const SEED_PASSWORD = 'quire-dev-password'
+
+/** Seeded people sign in as `<first name>@quire.local`. */
+export function seedEmail(name: string) {
+  return `${name.toLowerCase()}@quire.local`
+}

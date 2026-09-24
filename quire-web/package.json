@@ -15,6 +15,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.103.2",
     "@tiptap/extension-code-block": "^3.31.3",
     "@tiptap/extension-color": "^3.31.3",
     "@tiptap/extension-highlight": "^3.31.3",
@@ -53,6 +54,7 @@
     "autoprefixer": "^10.6.1",
     "axe-core": "^4.13.0",
     "jsdom": "^27.0.1",
+    "msw": "^2.15.0",
     "oxlint": "^1.81.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",

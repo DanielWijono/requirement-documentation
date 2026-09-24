@@ -6,12 +6,14 @@ import { Avatar } from '../ui/Avatar'
 import { Tooltip } from '../ui/Tooltip'
 import { CounterBadge } from '../ui/Lozenge'
 import { useUIStore } from '../../store/uiStore'
-import { currentUser } from '../../data/mockData'
+import { useCurrentUser, useSignOut } from '../../hooks/useSession'
 import { isVisiblePage, useContentStore, useDerived } from '../../store/contentStore'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
 
 export function TopBar() {
+  const currentUser = useCurrentUser()
+  const signOut = useSignOut()
   const navigate = useNavigate()
   const toggleNav = useUIStore((s) => s.toggleNav)
   const openCommandPalette = useUIStore((s) => s.openCommandPalette)
@@ -177,7 +179,7 @@ export function TopBar() {
                   },
                 ]
               : []),
-            { label: 'Log out' },
+            { label: 'Log out', onSelect: () => signOut.mutate(undefined, { onSettled: () => navigate('/login', { replace: true }) }) },
           ]}
         />
       </div>

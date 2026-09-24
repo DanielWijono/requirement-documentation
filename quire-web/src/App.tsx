@@ -1,6 +1,10 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell/AppShell'
+import { RequireSession } from './components/shell/RequireSession'
+import { createQueryClient } from './lib/queryClient'
+import { AcceptInvite, ForgotPassword, Login, ResetPassword } from './routes/Auth'
 import { Home } from './routes/Home'
 import { SpacesDirectory } from './routes/SpacesDirectory'
 import { SpaceOverview } from './routes/SpaceOverview'
@@ -37,33 +41,46 @@ function useAppearanceEffects() {
   }, [readingFont])
 }
 
-export default function App() {
+export default function App({ queryClient }: { queryClient?: QueryClient }) {
   useAppearanceEffects()
+  const [client] = useState(() => queryClient ?? createQueryClient())
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/spaces" element={<SpacesDirectory />} />
-          <Route path="/spaces/:spaceId" element={<SpaceOverview />} />
-          <Route path="/spaces/:spaceId/blog" element={<SpaceBlog />} />
-          <Route path="/spaces/:spaceId/templates" element={<SpaceTemplates />} />
-          <Route path="/spaces/:spaceId/settings" element={<SpaceSettings />} />
-          <Route path="/spaces/:spaceId/archive" element={<SpaceArchive />} />
-          <Route path="/spaces/:spaceId/pages/:pageId" element={<PageView />} />
+    <QueryClientProvider client={client}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/invite/:token" element={<AcceptInvite />} />
           <Route
-            path="/spaces/:spaceId/pages/:pageId/edit"
             element={
-              <Suspense fallback={<PageSkeleton />}>
-                <PageEdit />
-              </Suspense>
+              <RequireSession>
+                <AppShell />
+              </RequireSession>
             }
-          />
-          <Route path="/search" element={<SearchResults />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          >
+            <Route path="/" element={<Home />} />
+            <Route path="/spaces" element={<SpacesDirectory />} />
+            <Route path="/spaces/:spaceId" element={<SpaceOverview />} />
+            <Route path="/spaces/:spaceId/blog" element={<SpaceBlog />} />
+            <Route path="/spaces/:spaceId/templates" element={<SpaceTemplates />} />
+            <Route path="/spaces/:spaceId/settings" element={<SpaceSettings />} />
+            <Route path="/spaces/:spaceId/archive" element={<SpaceArchive />} />
+            <Route path="/spaces/:spaceId/pages/:pageId" element={<PageView />} />
+            <Route
+              path="/spaces/:spaceId/pages/:pageId/edit"
+              element={
+                <Suspense fallback={<PageSkeleton />}>
+                  <PageEdit />
+                </Suspense>
+              }
+            />
+            <Route path="/search" element={<SearchResults />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   )
 }

@@ -16,7 +16,8 @@ import clsx from 'clsx'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, CloudOff, Loader2 } from 'lucide-react'
 import { canEdit, canView, usePage, useContentStore, ancestorChainIn, usePageTree, useSpace } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
-import { currentUser, users } from '../../data/mockData'
+import { users } from '../../data/mockData'
+import { useCurrentUser } from '../../hooks/useSession'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
@@ -38,6 +39,7 @@ import { Forbidden } from '../../routes/Forbidden'
 type SaveState = 'idle' | 'saving' | 'saved' | 'offline' | 'error'
 
 export function EditorShell() {
+  const currentUser = useCurrentUser()
   const { pageId, spaceId } = useParams()
   const navigate = useNavigate()
   const page = usePage(pageId)
