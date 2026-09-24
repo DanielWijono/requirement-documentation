@@ -1,13 +1,13 @@
 import { SquarePen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
-import { useSpace } from '../store/contentStore'
+
 import { Button } from '../components/ui/Button'
-import { NotFound } from './NotFound'
+import { useSpaceRoute } from '../components/space/useSpaceRoute'
 
 export function SpaceBlog() {
   const { spaceId } = useParams()
-  const space = useSpace(spaceId)
-  if (!space) return <NotFound />
+  const { space, fallback } = useSpaceRoute(spaceId)
+  if (!space) return fallback
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">

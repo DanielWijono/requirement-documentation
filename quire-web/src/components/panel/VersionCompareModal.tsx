@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeft, RotateCcw, Link as LinkIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { Page } from '../../types'
-import { userById } from '../../data/mockData'
+import { useUserLookup } from '../../queries/users'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { useReturnFocus } from '../../hooks/useReturnFocus'
 import { useContentStore } from '../../store/contentStore'
@@ -61,6 +61,7 @@ export function VersionCompareModal({
   version: number | null
   onClose: () => void
 }) {
+  const userById = useUserLookup()
   useEscapeKey(onClose, version !== null)
   useReturnFocus(version !== null)
   const restoreVersion = useContentStore((s) => s.restoreVersion)

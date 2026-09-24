@@ -7,8 +7,9 @@ import { useUIStore } from '../../store/uiStore'
 import { isVisiblePage, useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { useReturnFocus } from '../../hooks/useReturnFocus'
-import { users } from '../../data/mockData'
+import { useUserList } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
+import { useSpaceList } from '../../queries/spaces'
 
 interface Result {
   id: string
@@ -44,7 +45,8 @@ function CommandPaletteBody() {
   const openCreatePage = useUIStore((s) => s.openCreatePage)
   const navigate = useNavigate()
   const { spaceId } = useParams()
-  const spaces = useContentStore((s) => s.spaces)
+  const spaces = useSpaceList()
+  const users = useUserList()
   const pages = useContentStore((s) => s.pages)
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
 
@@ -112,7 +114,7 @@ function CommandPaletteBody() {
       .filter((u) => u.name.toLowerCase().includes(q))
       .map((u) => ({ id: `u-${u.id}`, kind: 'person', title: u.name, onSelect: () => navigate(`/search?contributor=${u.id}`) }))
     return [...pageResults, ...spaceResults, ...peopleResults]
-  }, [query, scope, pages, spaces, recentlyViewed, navigate, setTheme, theme, openCreatePage])
+  }, [query, scope, pages, spaces, users, recentlyViewed, navigate, setTheme, theme, openCreatePage])
 
   function commit(index: number) {
     const r = results[index]
@@ -201,6 +203,7 @@ function CommandPaletteBody() {
 }
 
 function ResultIcon({ result }: { result: Result }) {
+  const users = useUserList()
   if (result.kind === 'person') {
     const u = users.find((x) => x.name === result.title)
     return u ? <Avatar user={u} size={24} /> : <FileText className="w-4 h-4" strokeWidth={1.5} />

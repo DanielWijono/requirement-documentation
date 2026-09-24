@@ -10,6 +10,7 @@ import { useCurrentUser, useSignOut } from '../../hooks/useSession'
 import { isVisiblePage, useContentStore, useDerived } from '../../store/contentStore'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
+import { useSpaceList } from '../../queries/spaces'
 
 export function TopBar() {
   const currentUser = useCurrentUser()
@@ -37,7 +38,7 @@ export function TopBar() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [])
-  const spaces = useContentStore((s) => s.spaces)
+  const spaces = useSpaceList()
   // Only what the menus show, so autosaves and unrelated edits don't re-render the top bar.
   const starredPages = useDerived((s) =>
     Object.values(s.pages)

@@ -2,33 +2,36 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { ChevronDown, Plus, Star } from 'lucide-react'
-import { useContentStore } from '../store/contentStore'
-import { userById } from '../data/mockData'
+import { useCurrentUser } from '../hooks/useSession'
+import { useUserLookup } from '../queries/users'
 import { ageInDays } from '../lib/relativeTime'
 import { Button } from '../components/ui/Button'
 import { Menu } from '../components/ui/Menu'
 import { CreateSpaceModal } from '../components/create/CreateSpaceModal'
+import { useSpaceList, useToggleSpaceStar } from '../queries/spaces'
 
 type Filter = 'all' | 'mine' | 'starred' | 'archived'
 type Sort = 'name' | 'recent'
 
 export function SpacesDirectory() {
   const navigate = useNavigate()
-  const spaces = useContentStore((s) => s.spaces)
-  const toggleSpaceStar = useContentStore((s) => s.toggleSpaceStar)
+  const spaces = useSpaceList()
+  const me = useCurrentUser()
+  const userById = useUserLookup()
+  const toggleSpaceStar = useToggleSpaceStar()
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [createOpen, setCreateOpen] = useState(false)
 
   const filtered = useMemo(() => {
     let list = spaces
-    if (filter === 'mine') list = list.filter((s) => s.ownerId === 'u.daniel')
+    if (filter === 'mine') list = list.filter((s) => s.ownerId === me.id)
     else if (filter === 'starred') list = list.filter((s) => s.starred)
     else if (filter === 'archived') list = list.filter((s) => s.archived)
     else list = list.filter((s) => !s.archived)
 
     return [...list].sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : ageInDays(a.lastActivity) - ageInDays(b.lastActivity)))
-  }, [spaces, filter, sort])
+  }, [spaces, filter, sort, me.id])
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -87,7 +90,7 @@ export function SpacesDirectory() {
                 <span className="t-ui-sm text-(--color-text-secondary) hidden md:block w-24 shrink-0">{s.memberCount} members</span>
                 <span className="t-ui-sm text-(--color-text-secondary) hidden md:block w-28 shrink-0">{s.lastActivity}</span>
                 <button
-                  onClick={() => toggleSpaceStar(s.id)}
+                  onClick={() => toggleSpaceStar.mutate(s)}
                   aria-label={s.starred ? 'Unstar space' : 'Star space'}
                   className="shrink-0 text-(--color-text-secondary) hover:text-(--color-text-primary)"
                 >

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { mountEditor } from '../editorHarness'
+import { TestProviders } from '../TestProviders'
 import { EditorToolbar } from '../../src/components/editor/EditorToolbar'
 import { BubbleToolbar } from '../../src/components/editor/BubbleToolbar'
 import { SlashMenu } from '../../src/components/editor/SlashMenu'
@@ -20,7 +21,7 @@ function setup(content?: string) {
 describe('EditorToolbar', () => {
   it('reflects formatting state as the selection changes, without waiting for a parent render', async () => {
     const editor = setup('<p><strong>bold</strong> plain</p>')
-    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />)
+    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />, { wrapper: TestProviders })
     act(() => {
       editor.commands.setTextSelection(2)
     })
@@ -34,7 +35,7 @@ describe('EditorToolbar', () => {
   it('buttons and the block select apply formatting', async () => {
     const user = userEvent.setup()
     const editor = setup()
-    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />)
+    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />, { wrapper: TestProviders })
     act(() => {
       editor.commands.setTextSelection({ from: 1, to: 6 })
     })
@@ -53,7 +54,7 @@ describe('EditorToolbar', () => {
   it('width menu reports the chosen mode', async () => {
     const user = userEvent.setup()
     const onWidthModeChange = vi.fn()
-    render(<EditorToolbar editor={setup()} widthMode="reading" onWidthModeChange={onWidthModeChange} />)
+    render(<EditorToolbar editor={setup()} widthMode="reading" onWidthModeChange={onWidthModeChange} />, { wrapper: TestProviders })
     await user.click(screen.getByRole('button', { name: /Reading/ }))
     await user.click(screen.getByRole('menuitem', { name: 'Full width' }))
     expect(onWidthModeChange).toHaveBeenCalledWith('full')
@@ -62,7 +63,7 @@ describe('EditorToolbar', () => {
   it('link button prompts and applies the URL; empty removes it', async () => {
     const user = userEvent.setup()
     const editor = setup()
-    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />)
+    render(<EditorToolbar editor={editor} widthMode="reading" onWidthModeChange={() => {}} />, { wrapper: TestProviders })
     act(() => {
       editor.commands.setTextSelection({ from: 1, to: 6 })
     })

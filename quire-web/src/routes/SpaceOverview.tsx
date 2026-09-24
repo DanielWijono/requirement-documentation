@@ -1,23 +1,24 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { Eye, MoreHorizontal, Star } from 'lucide-react'
-import { isVisiblePage, useContentStore, useSpace, usePageTree } from '../store/contentStore'
+import { isVisiblePage, useContentStore, usePageTree } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
 import { downloadFile } from '../lib/download'
 import { Button } from '../components/ui/Button'
 import { Menu } from '../components/ui/Menu'
-import { NotFound } from './NotFound'
+import { useToggleSpaceStar, useToggleSpaceWatch } from '../queries/spaces'
+import { useSpaceRoute } from '../components/space/useSpaceRoute'
 
 export function SpaceOverview() {
   const { spaceId } = useParams()
   const navigate = useNavigate()
-  const space = useSpace(spaceId)
+  const { space, fallback } = useSpaceRoute(spaceId)
   const tree = usePageTree(spaceId)
-  const toggleSpaceStar = useContentStore((s) => s.toggleSpaceStar)
-  const toggleSpaceWatch = useContentStore((s) => s.toggleSpaceWatch)
+  const toggleSpaceStar = useToggleSpaceStar()
+  const toggleSpaceWatch = useToggleSpaceWatch()
   const pages = useContentStore((s) => s.pages)
   const pushToast = useUIStore((s) => s.pushToast)
 
-  if (!space) return <NotFound />
+  if (!space) return fallback
   const spacePages = Object.values(pages).filter((p) => p.spaceId === space.id && isVisiblePage(p))
 
   function exportSpace() {
@@ -39,7 +40,7 @@ export function SpaceOverview() {
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0 pt-1">
-            <Button variant="default" size="compact" aria-pressed={space.starred} icon={<Star strokeWidth={1.5} fill={space.starred ? 'currentColor' : 'none'} />} onClick={() => toggleSpaceStar(spaceId!)}>
+            <Button variant="default" size="compact" aria-pressed={space.starred} icon={<Star strokeWidth={1.5} fill={space.starred ? 'currentColor' : 'none'} />} onClick={() => toggleSpaceStar.mutate(space)}>
               {space.starred ? 'Starred' : 'Star'}
             </Button>
             <Button
@@ -48,7 +49,7 @@ export function SpaceOverview() {
               icon={<Eye strokeWidth={1.5} />}
               aria-pressed={Boolean(space.watched)}
               onClick={() => {
-                toggleSpaceWatch(space.id)
+                toggleSpaceWatch.mutate(space)
                 pushToast({ message: space.watched ? 'Stopped watching this space' : 'Watching this space', tone: 'success' })
               }}
             >

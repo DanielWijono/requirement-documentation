@@ -1,5 +1,7 @@
-import { sessionContract, type ContractTarget } from '@quire/shared/contract'
+import { MEMBERS_GROUP_ID } from '@quire/shared'
+import { sessionContract, spacesContract, type ContractTarget } from '@quire/shared/contract'
 import { beforeEach } from 'vitest'
+import * as t from '../src/db/schema.ts'
 import { createUserWithPassword } from '../src/services/users.ts'
 import { captureMailer, client, PASSWORD, testApp } from './helpers/app.ts'
 import { testDb } from './helpers/db.ts'
@@ -10,6 +12,7 @@ let target: ContractTarget
 beforeEach(async () => {
   const mailer = captureMailer()
   const app = testApp(mailer)
+  await testDb().db.insert(t.groups).values({ id: MEMBERS_GROUP_ID, name: 'All members', isSystem: true })
   const admin = await createUserWithPassword(testDb().db, { email: 'ada@example.com', name: 'Ada Admin', password: PASSWORD, siteRole: 'admin' })
   target = {
     newClient: () => client(app),
@@ -19,3 +22,4 @@ beforeEach(async () => {
 })
 
 sessionContract(() => target)
+spacesContract(() => target)

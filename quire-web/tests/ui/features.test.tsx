@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { renderApp } from '../renderApp'
+import { fakeDb } from '../fakeApi/db'
 import { findTreeNodeIn, useContentStore } from '../../src/store/contentStore'
 import { useUIStore } from '../../src/store/uiStore'
 
@@ -35,10 +36,21 @@ describe('Spaces directory', () => {
     await user.type(within(dialog).getByPlaceholderText('DES'), 'dsn')
     await user.click(submit)
 
-    const created = content().spaces.at(-1)!
-    expect(created).toMatchObject({ name: 'Design', key: 'DSN' })
+    expect(await screen.findByText('This space has no pages yet')).toBeInTheDocument()
+    const created = [...fakeDb.spaces.values()].find((s) => s.key === 'DSN')!
+    expect(created).toMatchObject({ name: 'Design', ownerId: 'u.daniel' })
     expect(window.location.pathname).toBe(`/spaces/${created.id}`)
-    expect(screen.getByText('This space has no pages yet')).toBeInTheDocument()
+  })
+
+  it('explains a space key that is already taken', async () => {
+    const { user } = renderApp('/spaces')
+    await user.click(screen.getByRole('button', { name: 'Create space' }))
+    const dialog = screen.getByRole('dialog', { name: 'Create a space' })
+    await user.type(within(dialog).getByPlaceholderText('Design'), 'Engineering two')
+    await user.type(within(dialog).getByPlaceholderText('DES'), 'eng')
+    await user.click(within(dialog).getByRole('button', { name: 'Create space' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Another space already uses that key.')
+    expect(window.location.pathname).toBe('/spaces')
   })
 })
 

@@ -25,6 +25,8 @@ export interface Space {
   watched?: boolean
   /** Principal id (user id or group id) → granted permissions. Missing means the defaults. */
   permissions?: Record<string, SpacePermission[]>
+  /** What the signed-in person may do here (from the API), `Admin` expanded. */
+  myPermissions?: SpacePermission[]
 }
 
 export const SPACE_PERMISSIONS = ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin'] as const

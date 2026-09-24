@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Check, MessageCircle, MoreHorizontal, SmilePlus } from 'lucide-react'
 import type { Comment } from '../../types'
-import { userById } from '../../data/mockData'
+import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { useContentStore } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 
 export function CommentThread({ pageId, comment }: { pageId: string; comment: Comment }) {
+  const userById = useUserLookup()
   const author = userById(comment.authorId)
   const toggleResolve = useContentStore((s) => s.toggleResolveComment)
   const addReply = useContentStore((s) => s.addReply)

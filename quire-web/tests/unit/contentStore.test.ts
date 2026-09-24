@@ -4,18 +4,19 @@ import { ancestorChainIn, findTreeNodeIn, useContentStore } from '../../src/stor
 const store = () => useContentStore.getState()
 
 describe('contentStore', () => {
+  it('deleteSpace forgets the space’s pages and tree', () => {
+    store().deleteSpace('sp.people')
+    expect(store().pages['pg.benefits']).toBeUndefined()
+    expect(store().pageTree['sp.people']).toBeUndefined()
+  })
+
   it('seeds spaces, pages and trees from mock data', () => {
     expect(store().spaces.map((s) => s.id)).toEqual(['sp.eng', 'sp.product', 'sp.people', 'sp.legacy'])
     expect(store().pages['pg.adr-012'].title).toMatch(/ADR-012/)
     expect(store().pageTree['sp.eng'].length).toBeGreaterThan(0)
   })
 
-  it('toggles space and page stars', () => {
-    store().toggleSpaceStar('sp.product')
-    expect(store().spaces.find((s) => s.id === 'sp.product')?.starred).toBe(true)
-    store().toggleSpaceStar('sp.product')
-    expect(store().spaces.find((s) => s.id === 'sp.product')?.starred).toBe(false)
-
+  it('toggles page stars', () => {
     store().togglePageStar('pg.onboarding')
     expect(store().pages['pg.onboarding'].starred).toBe(true)
   })
@@ -41,13 +42,6 @@ describe('contentStore', () => {
     const arch = findTreeNodeIn(store().pageTree['sp.eng'], 'pg.architecture')
     expect(arch?.children.map((c) => c.id)).toContain(childId)
     expect(rootId).not.toBe(childId)
-  })
-
-  it('createSpace uppercases key, defaults icon and creates an empty tree', () => {
-    const id = store().createSpace({ name: 'Design', key: 'des', description: 'd', icon: '' })
-    const sp = store().spaces.find((s) => s.id === id)
-    expect(sp).toMatchObject({ name: 'Design', key: 'DES', icon: '📁', archived: false })
-    expect(store().pageTree[id]).toEqual([])
   })
 
   describe('saveContent', () => {

@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { SPACE_GROUP_ID, effectivePermissions, useContentStore, useSpace } from '../store/contentStore'
+import { MEMBERS_GROUP_ID } from '@quire/shared'
+import { useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
-import { users } from '../data/mockData'
+import { ApiError } from '../lib/apiClient'
+import { useDeleteSpace, useSetSpaceArchived, useSetSpacePermission, useSpacePermissions, useUpdateSpace } from '../queries/spaces'
+import { useGroups, useUserList } from '../queries/users'
 import { TEMPLATES } from '../data/templates'
 import { SPACE_PERMISSIONS } from '../types'
 import type { Space } from '../types'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
-import { NotFound } from './NotFound'
+import { useSpaceRoute } from '../components/space/useSpaceRoute'
 
 type Tab = 'details' | 'permissions' | 'templates' | 'labels' | 'archive' | 'delete'
 
@@ -24,10 +27,10 @@ const TABS: { id: Tab; label: string }[] = [
 
 export function SpaceSettings() {
   const { spaceId } = useParams()
-  const space = useSpace(spaceId)
+  const { space, fallback } = useSpaceRoute(spaceId)
   const [tab, setTab] = useState<Tab>('details')
 
-  if (!space) return <NotFound />
+  if (!space) return fallback
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -69,7 +72,7 @@ export function SpaceSettings() {
 const inputClass = 't-ui-md w-full h-8 px-2 rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg-canvas)'
 
 function DetailsTab({ space }: { space: Space }) {
-  const updateSpace = useContentStore((s) => s.updateSpace)
+  const updateSpace = useUpdateSpace()
   const pushToast = useUIStore((s) => s.pushToast)
   const [name, setName] = useState(space.name)
   const [key, setKey] = useState(space.key)
@@ -83,8 +86,10 @@ function DetailsTab({ space }: { space: Space }) {
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
-        updateSpace(space.id, { name: name.trim(), key, description })
-        pushToast({ message: 'Space details saved', tone: 'success' })
+        updateSpace.mutate(
+          { id: space.id, patch: { name: name.trim(), key, description } },
+          { onSuccess: () => pushToast({ message: 'Space details saved', tone: 'success' }) },
+        )
       }}
     >
       <div>
@@ -114,7 +119,12 @@ function DetailsTab({ space }: { space: Space }) {
           className="t-ui-md w-full resize-none rounded-(--radius-sm) border border-(--color-border-strong) p-2 bg-(--color-bg-canvas)"
         />
       </div>
-      <Button type="submit" variant="primary" className="self-start" disabled={!dirty || !valid}>
+      {updateSpace.error && (
+        <p role="alert" className="t-ui-sm text-(--status-danger-text)">
+          {updateSpace.error instanceof ApiError && updateSpace.error.code === 'key_taken' ? 'Another space already uses that key.' : `Couldn’t save: ${updateSpace.error.message}`}
+        </p>
+      )}
+      <Button type="submit" variant="primary" className="self-start" disabled={!dirty || !valid} loading={updateSpace.isPending}>
         Save changes
       </Button>
     </form>
@@ -122,11 +132,28 @@ function DetailsTab({ space }: { space: Space }) {
 }
 
 function PermissionsTab({ space }: { space: Space }) {
-  const setSpacePermission = useContentStore((s) => s.setSpacePermission)
-  const rows = [{ id: SPACE_GROUP_ID, name: 'All space members', user: undefined }, ...users.map((u) => ({ id: u.id, name: u.name, user: u }))]
+  const isAdmin = Boolean(space.myPermissions?.includes('Admin'))
+  const grants = useSpacePermissions(space.id, isAdmin)
+  const users = useUserList()
+  const groups = useGroups().data ?? []
+  const setPermission = useSetSpacePermission(space.id)
+
+  if (!isAdmin) return <p className="t-ui-md text-(--color-text-secondary)">Only space admins can see and change who has access.</p>
+  if (grants.isPending) return <p className="t-ui-md text-(--color-text-secondary)">Loading permissions…</p>
+  if (grants.isError) return <p role="alert" className="t-ui-md text-(--status-danger-text)">Couldn’t load permissions: {grants.error.message}</p>
+
+  const rows = [
+    ...groups.map((g) => ({ type: 'group' as const, id: g.id, name: g.id === MEMBERS_GROUP_ID ? 'All space members' : g.name, user: undefined })),
+    ...users.map((u) => ({ type: 'user' as const, id: u.id, name: u.name, user: u })),
+  ]
 
   return (
     <div className="overflow-x-auto">
+      {setPermission.isError && (
+        <p role="alert" className="t-ui-sm text-(--status-danger-text) mb-2">
+          Couldn’t save that change: {setPermission.error.message}
+        </p>
+      )}
       <table className="min-w-full t-ui-md">
         <thead>
           <tr>
@@ -142,10 +169,10 @@ function PermissionsTab({ space }: { space: Space }) {
         </thead>
         <tbody>
           {rows.map((row) => {
-            const granted = effectivePermissions(space, row.id)
-            const isOwner = row.id === space.ownerId
+            const isOwner = row.type === 'user' && row.id === space.ownerId
+            const granted = isOwner ? SPACE_PERMISSIONS : (grants.data.find((g) => g.principalType === row.type && g.principalId === row.id)?.perms ?? [])
             return (
-              <tr key={row.id} className="border-t border-(--color-border-default)">
+              <tr key={`${row.type}:${row.id}`} className="border-t border-(--color-border-default)">
                 <th scope="row" className="py-2 pr-4 sticky left-0 bg-(--color-bg-app) font-normal text-left">
                   <span className="flex items-center gap-2">
                     {row.user ? <Avatar user={row.user} size={16} /> : <span className="w-4 h-4 rounded-(--radius-sm) bg-(--color-bg-sunken) inline-block" />}
@@ -159,9 +186,9 @@ function PermissionsTab({ space }: { space: Space }) {
                       type="checkbox"
                       aria-label={`${p} for ${row.name}`}
                       checked={granted.includes(p)}
-                      // The owner always keeps Admin, so a space can never be locked out.
-                      disabled={isOwner && p === 'Admin'}
-                      onChange={(e) => setSpacePermission(space.id, row.id, p, e.target.checked)}
+                      // The owner always has every permission, so a space can never be locked out.
+                      disabled={isOwner}
+                      onChange={(e) => setPermission.mutate({ principalType: row.type, principalId: row.id, permission: p, granted: e.target.checked })}
                       className="accent-(--color-bg-accent)"
                     />
                   </td>
@@ -219,7 +246,7 @@ function LabelsTab({ space }: { space: Space }) {
 }
 
 function ArchiveTab({ space }: { space: Space }) {
-  const setSpaceArchived = useContentStore((s) => s.setSpaceArchived)
+  const setSpaceArchived = useSetSpaceArchived()
   const pushToast = useUIStore((s) => s.pushToast)
   return (
     <div className="flex items-center justify-between gap-4 p-4 rounded-(--radius-md) border border-(--color-border-default)">
@@ -231,9 +258,16 @@ function ArchiveTab({ space }: { space: Space }) {
       </div>
       <Button
         variant="default"
+        loading={setSpaceArchived.isPending}
         onClick={() => {
-          setSpaceArchived(space.id, !space.archived)
-          pushToast({ message: space.archived ? 'Space restored' : 'Space archived', tone: 'success' })
+          const archived = !space.archived
+          setSpaceArchived.mutate(
+            { id: space.id, archived },
+            {
+              onSuccess: () => pushToast({ message: archived ? 'Space archived' : 'Space restored', tone: 'success' }),
+              onError: (err) => pushToast({ message: `Couldn’t ${archived ? 'archive' : 'restore'} the space: ${err.message}`, tone: 'danger' }),
+            },
+          )
         }}
       >
         {space.archived ? 'Restore space' : 'Archive space'}
@@ -244,7 +278,8 @@ function ArchiveTab({ space }: { space: Space }) {
 
 function DeleteTab({ space }: { space: Space }) {
   const navigate = useNavigate()
-  const deleteSpace = useContentStore((s) => s.deleteSpace)
+  const deleteSpace = useDeleteSpace()
+  const forgetSpacePages = useContentStore((s) => s.deleteSpace)
   const pushToast = useUIStore((s) => s.pushToast)
   const pageCount = useContentStore((s) => Object.values(s.pages).filter((p) => p.spaceId === space.id).length)
   const [confirmKey, setConfirmKey] = useState('')
@@ -265,11 +300,18 @@ function DeleteTab({ space }: { space: Space }) {
         <Button
           variant="danger"
           disabled={confirmKey !== space.key}
-          onClick={() => {
-            deleteSpace(space.id)
-            navigate('/spaces')
-            pushToast({ message: `Deleted ${space.name}`, tone: 'info' })
-          }}
+          loading={deleteSpace.isPending}
+          onClick={() =>
+            deleteSpace.mutate(space.id, {
+              onSuccess: () => {
+                // Pages still live in the local store until they move to the API (Phase 6j).
+                forgetSpacePages(space.id)
+                navigate('/spaces')
+                pushToast({ message: `Deleted ${space.name}`, tone: 'info' })
+              },
+              onError: (err) => pushToast({ message: `Couldn’t delete the space: ${err.message}`, tone: 'danger' }),
+            })
+          }
         >
           Delete space
         </Button>

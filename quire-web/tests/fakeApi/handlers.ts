@@ -1,31 +1,8 @@
-import { inviteAcceptSchema, inviteCreateSchema, MIN_PASSWORD_LENGTH, type ApiErrorBody, type InviteLookupDto } from '@quire/shared'
-import { http, HttpResponse, type DefaultBodyType, type StrictRequest } from 'msw'
-import type { z } from 'zod'
+import { inviteAcceptSchema, inviteCreateSchema, MIN_PASSWORD_LENGTH, type InviteLookupDto } from '@quire/shared'
+import { http, HttpResponse } from 'msw'
 import { fakeDb, SESSION_COOKIE } from './db'
-
-type Cookies = Record<string, string>
-
-function fail(status: number, code: string, message: string) {
-  return HttpResponse.json<ApiErrorBody>({ code, message }, { status })
-}
-
-function sessionUser(cookies: Cookies) {
-  const userId = fakeDb.sessions.get(cookies[SESSION_COOKIE] ?? '')
-  const user = userId ? fakeDb.users.get(userId) : undefined
-  return user && !user.deactivated ? user : null
-}
-
-/** Parse a JSON body like the API's `readJson`: 400 on bad JSON or a schema failure. */
-async function body<T extends z.ZodType>(request: StrictRequest<DefaultBodyType>, schema: T): Promise<z.infer<T> | Response> {
-  let raw: unknown
-  try {
-    raw = await request.json()
-  } catch {
-    return fail(400, 'invalid_json', 'The request body must be JSON')
-  }
-  const parsed = schema.safeParse(raw)
-  return parsed.success ? parsed.data : fail(400, 'invalid_request', parsed.error.issues[0].message)
-}
+import { spaceHandlers } from './spaces'
+import { body, fail, sessionUser } from './util'
 
 const setSession = (token: string) => ({ 'set-cookie': `${SESSION_COOKIE}=${token}; Path=/; SameSite=Lax` })
 const clearSession = { 'set-cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0` }
@@ -76,7 +53,8 @@ export const handlers = [
     const invite = fakeDb.invites.get(params.token as string)
     if (!invite) return fail(404, 'not_found', 'Invite was not found')
     if (invite.acceptedAt || invite.expiresAt <= Date.now()) return fail(410, 'invite_expired', 'This invite has expired or was already used')
-    return HttpResponse.json<InviteLookupDto>({ email: invite.email, inviterName: fakeDb.users.get(invite.inviterId)!.name, expiresAt: new Date(invite.expiresAt).toISOString() })
+    const lookup: InviteLookupDto = { email: invite.email, inviterName: fakeDb.users.get(invite.inviterId)!.name, expiresAt: new Date(invite.expiresAt).toISOString() }
+    return HttpResponse.json(lookup)
   }),
 
   http.post('*/api/invites/:token/accept', async ({ request, params }) => {
@@ -89,6 +67,8 @@ export const handlers = [
     const id = fakeDb.createUser({ email: invite.email, name: input.name, password: input.password, siteRole: invite.siteRole })
     return HttpResponse.json({ ok: true }, { status: 201, headers: setSession(fakeDb.createSession(id)) })
   }),
+
+  ...spaceHandlers,
 
   // Anything the fake doesn't implement yet fails loudly instead of hanging a test.
   http.all('*/api/*', ({ request }) => fail(501, 'not_in_fake', `The fake API has no handler for ${request.method} ${new URL(request.url).pathname}`)),

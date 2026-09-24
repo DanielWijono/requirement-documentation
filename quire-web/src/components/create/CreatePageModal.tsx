@@ -7,6 +7,7 @@ import { Button } from '../ui/Button'
 import { useContentStore } from '../../store/contentStore'
 import type { PageTreeNode } from '../../types'
 import { TEMPLATES, templateOutline } from '../../data/templates'
+import { useSpaceList } from '../../queries/spaces'
 
 const ICONS: Record<string, typeof FileText> = {
   blank: FileText,
@@ -33,7 +34,7 @@ export function CreatePageModal(props: CreatePageModalProps) {
 
 function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = null }: CreatePageModalProps) {
   const navigate = useNavigate()
-  const spaces = useContentStore((s) => s.spaces)
+  const spaces = useSpaceList()
   const pageTree = useContentStore((s) => s.pageTree)
   const createPage = useContentStore((s) => s.createPage)
 

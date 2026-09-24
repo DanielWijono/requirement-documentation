@@ -3,8 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { ChevronRight, MoreHorizontal, Share2, Star } from 'lucide-react'
 import type { Page } from '../../types'
-import { userById } from '../../data/mockData'
-import { ancestorChainIn, canEdit, useContentStore, usePageTree, useSpace } from '../../store/contentStore'
+import { useUserLookup } from '../../queries/users'
+import { ancestorChainIn, canEdit, useContentStore, usePageTree } from '../../store/contentStore'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
@@ -13,6 +13,7 @@ import { PageStateBanner } from './PageStateBanner'
 import { ShareModal } from './ShareModal'
 import { usePageActions } from './usePageActions'
 import { useUIStore } from '../../store/uiStore'
+import { useSpace } from '../../queries/spaces'
 
 export function PageHeader({
   page,
@@ -23,6 +24,7 @@ export function PageHeader({
   viewingDraft?: boolean
   onToggleDraftView?: () => void
 }) {
+  const userById = useUserLookup()
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const space = useSpace(page.spaceId)

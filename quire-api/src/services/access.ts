@@ -10,7 +10,7 @@ import {
   type SpacePermission,
   type Subject,
 } from '@quire/shared'
-import { eq, sql, type SQL } from 'drizzle-orm'
+import { eq, or, sql, type SQL } from 'drizzle-orm'
 import type { SessionUser } from '../app.ts'
 import type { Queryable } from '../db/client.ts'
 import * as t from '../db/schema.ts'
@@ -47,9 +47,15 @@ export interface SpaceContext {
   access: SpaceAccess
 }
 
-/** A space by key the subject can view; 404 otherwise, so hidden spaces don't reveal they exist. */
-export async function spaceForSubject(db: Queryable, subject: Subject, key: string): Promise<SpaceContext> {
-  const [space] = await db.select().from(t.spaces).where(eq(t.spaces.key, key.toUpperCase()))
+/**
+ * A space by key or id the subject can view; 404 otherwise, so hidden spaces don't reveal they exist.
+ * Keys are upper case letters and digits and ids never are, so the two can't collide.
+ */
+export async function spaceForSubject(db: Queryable, subject: Subject, keyOrId: string): Promise<SpaceContext> {
+  const [space] = await db
+    .select()
+    .from(t.spaces)
+    .where(or(eq(t.spaces.key, keyOrId.toUpperCase()), eq(t.spaces.id, keyOrId)))
   if (!space) throw notFound('Space')
   const facts = await loadSpaceFacts(db, space)
   const access = evaluateSpaceAccess(subject, facts)

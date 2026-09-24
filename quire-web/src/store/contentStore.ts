@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import type { Comment, Page, PageState, PageTreeNode, Space, SpacePermission } from '../types'
+import type { Comment, Page, PageState, PageTreeNode, Space } from '../types'
 import { currentUser, pageTree as pageTreeSeed, pages as pagesSeed, recentlyViewedSeed, spaces as spacesSeed } from '../data/mockData'
 
 interface RecentEntry {
@@ -16,11 +16,9 @@ interface ContentState {
   pageTree: Record<string, PageTreeNode[]>
   recentlyViewed: RecentEntry[]
 
-  toggleSpaceStar: (spaceId: string) => void
   togglePageStar: (pageId: string) => void
   recordView: (pageId: string, spaceId: string) => void
   createPage: (spaceId: string, parentId: string | null, title?: string, contentHtml?: string) => string
-  createSpace: (input: { name: string; key: string; description: string; icon: string }) => string
   saveContent: (pageId: string, html: string, opts: { publish: boolean; comment?: string }) => void
   discardChanges: (pageId: string) => void
   updatePageMeta: (pageId: string, patch: Partial<Page>) => void
@@ -34,22 +32,8 @@ interface ContentState {
   restorePage: (pageId: string) => void
   deletePage: (pageId: string) => void
   resetToSeed: () => void
-  updateSpace: (spaceId: string, patch: Partial<Pick<Space, 'name' | 'key' | 'description' | 'icon'>>) => void
-  toggleSpaceWatch: (spaceId: string) => void
-  setSpacePermission: (spaceId: string, principalId: string, permission: SpacePermission, granted: boolean) => void
-  setSpaceArchived: (spaceId: string, archived: boolean) => void
+  /** Drop a deleted space's pages from the local store (the space itself lives in the API). */
   deleteSpace: (spaceId: string) => void
-}
-
-export const SPACE_GROUP_ID = 'group.members'
-
-/** Permissions a space starts with: the owner can do everything, members can view, add, edit and comment. */
-export function effectivePermissions(space: Space, principalId: string): SpacePermission[] {
-  const explicit = space.permissions?.[principalId]
-  if (explicit) return explicit
-  if (principalId === space.ownerId) return ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin']
-  if (principalId === SPACE_GROUP_ID) return ['View', 'Add', 'Edit', 'Comment']
-  return ['View', 'Comment']
 }
 
 type ContentData = Pick<ContentState, 'spaces' | 'pages' | 'pageTree' | 'recentlyViewed'>
@@ -148,27 +132,6 @@ export const useContentStore = create<ContentState>()(
 
   resetToSeed: () => set(seedData()),
 
-  updateSpace: (spaceId, patch) =>
-    set((s) => ({
-      spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, ...patch, ...(patch.key ? { key: patch.key.toUpperCase() } : {}) } : sp)),
-    })),
-
-  toggleSpaceWatch: (spaceId) =>
-    set((s) => ({ spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, watched: !sp.watched } : sp)) })),
-
-  setSpacePermission: (spaceId, principalId, permission, granted) =>
-    set((s) => ({
-      spaces: s.spaces.map((sp) => {
-        if (sp.id !== spaceId) return sp
-        const current = effectivePermissions(sp, principalId)
-        const next = granted ? [...new Set([...current, permission])] : current.filter((p) => p !== permission)
-        return { ...sp, permissions: { ...sp.permissions, [principalId]: next } }
-      }),
-    })),
-
-  setSpaceArchived: (spaceId, archived) =>
-    set((s) => ({ spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, archived } : sp)) })),
-
   deleteSpace: (spaceId) =>
     set((s) => {
       const pageTree = { ...s.pageTree }
@@ -180,11 +143,6 @@ export const useContentStore = create<ContentState>()(
         recentlyViewed: s.recentlyViewed.filter((r) => r.spaceId !== spaceId),
       }
     }),
-
-  toggleSpaceStar: (spaceId) =>
-    set((s) => ({
-      spaces: s.spaces.map((sp) => (sp.id === spaceId ? { ...sp, starred: !sp.starred } : sp)),
-    })),
 
   togglePageStar: (pageId) =>
     set((s) => ({
@@ -227,25 +185,6 @@ export const useContentStore = create<ContentState>()(
         [spaceId]: insertNode(s.pageTree[spaceId] ?? [], parentId, node),
       },
     }))
-    return id
-  },
-
-  createSpace: ({ name, key, description, icon }) => {
-    const id = `sp.new-${nextId++}`
-    const space: Space = {
-      id,
-      key: key.toUpperCase(),
-      name,
-      icon: icon || '\u{1F4C1}',
-      description,
-      memberCount: 1,
-      pageCount: 0,
-      lastActivity: 'Just now',
-      starred: false,
-      archived: false,
-      ownerId: currentUser.id,
-    }
-    set((s) => ({ spaces: [...s.spaces, space], pageTree: { ...s.pageTree, [id]: [] } }))
     return id
   },
 
@@ -487,10 +426,6 @@ export function isVisiblePage(page: Page | undefined): page is Page {
 export function useDerived<T>(selector: (s: ContentState) => T): T {
   const json = useContentStore((s) => JSON.stringify(selector(s)))
   return useMemo(() => JSON.parse(json) as T, [json])
-}
-
-export function useSpace(spaceId: string | undefined) {
-  return useContentStore((s) => s.spaces.find((sp) => sp.id === spaceId))
 }
 
 export function usePage(pageId: string | undefined) {

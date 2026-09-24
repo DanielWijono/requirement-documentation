@@ -102,8 +102,13 @@ export const spaces = new Hono<AppEnv>()
     const subject = await sessionSubject(c)
     const { space } = requireSpaceAdmin(await spaceForSubject(db, subject, c.req.param('key')))
     const input = await readJson(c.req, spacePatchSchema)
-    const [row] = await db.update(t.spaces).set(input).where(eq(t.spaces.id, space.id)).returning()
-    return c.json(await spaceDto(db, subject, row))
+    try {
+      const [row] = await db.update(t.spaces).set(input).where(eq(t.spaces.id, space.id)).returning()
+      return c.json(await spaceDto(db, subject, row))
+    } catch (err) {
+      if (isUniqueViolation(err)) throw conflict('key_taken', 'A space with that key already exists')
+      throw err
+    }
   })
 
   .delete('/:key', requireUser, async (c) => {

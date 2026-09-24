@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InviteLookupDto, UserDto } from '../src/api.ts'
+import { MEMBERS_GROUP_ID, type InviteLookupDto, type SpaceDto, type SpaceGrantDto, type UserDto } from '../src/api.ts'
 
 /**
  * The contract suite: behaviour both the real API and the web tests' fake backend must share.
@@ -16,6 +16,9 @@ export interface ContractResponse {
 export interface ContractClient {
   get(path: string): Promise<ContractResponse>
   post(path: string, body?: unknown): Promise<ContractResponse>
+  put(path: string, body?: unknown): Promise<ContractResponse>
+  patch(path: string, body?: unknown): Promise<ContractResponse>
+  delete(path: string): Promise<ContractResponse>
 }
 
 export interface ContractTarget {
@@ -31,6 +34,94 @@ async function signedIn(target: ContractTarget, email: string, password: string)
   const res = await c.post('/api/auth/sign-in/email', { email, password })
   expect(res.status).toBe(200)
   return c
+}
+
+const unique = () => Math.random().toString(36).slice(2, 8)
+
+/** A new member, invited by the admin and signed in. */
+async function newMember(t: ContractTarget) {
+  const admin = await signedIn(t, t.admin.email, t.admin.password)
+  const email = `m-${unique()}@example.com`
+  expect((await admin.post('/api/invites', { email })).status).toBe(201)
+  const token = /\/invite\/([\w-]+)/.exec(await t.lastMailTo(email))?.[1]
+  const member = t.newClient()
+  expect((await member.post(`/api/invites/${token}/accept`, { name: 'Mo Member', password: 'long enough password' })).status).toBe(201)
+  const me = (await (await member.get('/api/me')).json()) as UserDto
+  return Object.assign(member, { id: me.id })
+}
+
+const json = async <T>(res: ContractResponse) => (await res.json()) as T
+
+export function spacesContract(target: () => ContractTarget) {
+  describe('contract: spaces', () => {
+    async function setup() {
+      const t = target()
+      const admin = await signedIn(t, t.admin.email, t.admin.password)
+      const key = `C${unique().replace(/[^a-z]/g, 'x').toUpperCase().slice(0, 5)}`
+      const res = await admin.post('/api/spaces', { key: key.toLowerCase(), name: 'Contract space' })
+      expect(res.status).toBe(201)
+      return { t, admin, key, space: await json<SpaceDto>(res) }
+    }
+
+    it('creates a space the creator owns, found by key or id', async () => {
+      const { admin, key, space } = await setup()
+      expect(space).toMatchObject({ key, name: 'Contract space', icon: '📁', description: '', archived: false, starred: false, watched: false })
+      expect(space.myPermissions).toEqual(['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin'])
+      expect((await admin.post('/api/spaces', { key, name: 'Again' })).status).toBe(409)
+      expect((await admin.post('/api/spaces', { key: '1BAD', name: 'Bad' })).status).toBe(400)
+      expect((await json<SpaceDto[]>(await admin.get('/api/spaces'))).map((s) => s.key)).toContain(key)
+      expect((await json<SpaceDto>(await admin.get(`/api/spaces/${space.id}`))).key).toBe(key)
+      expect((await admin.get('/api/spaces/NOPE9')).status).toBe(404)
+    })
+
+    it('stars, watches, renames, archives and deletes', async () => {
+      const { admin, key, space } = await setup()
+      expect((await admin.put(`/api/spaces/${key}/star`)).status).toBe(204)
+      expect((await admin.put(`/api/spaces/${key}/watch`)).status).toBe(204)
+      expect(await json<SpaceDto>(await admin.get(`/api/spaces/${key}`))).toMatchObject({ starred: true, watched: true })
+      expect((await admin.delete(`/api/spaces/${key}/star`)).status).toBe(204)
+      expect((await json<SpaceDto>(await admin.get(`/api/spaces/${key}`))).starred).toBe(false)
+
+      const renamed = await json<SpaceDto>(await admin.patch(`/api/spaces/${space.id}`, { name: 'Renamed', key: `${key}Z` }))
+      expect(renamed).toMatchObject({ id: space.id, name: 'Renamed', key: `${key}Z` })
+      expect((await admin.patch(`/api/spaces/${space.id}`, {})).status).toBe(400)
+      expect((await json<SpaceDto>(await admin.post(`/api/spaces/${space.id}/archive`))).archived).toBe(true)
+      expect((await json<SpaceDto>(await admin.post(`/api/spaces/${space.id}/unarchive`))).archived).toBe(false)
+      expect((await admin.delete(`/api/spaces/${space.id}`)).status).toBe(204)
+      expect((await admin.get(`/api/spaces/${space.id}`)).status).toBe(404)
+    })
+
+    it('follows the permission matrix', async () => {
+      const { t, admin, key } = await setup()
+      const member = await newMember(t)
+      expect((await json<SpaceDto>(await member.get(`/api/spaces/${key}`))).myPermissions).toEqual(['View', 'Add', 'Edit', 'Comment'])
+      expect((await member.patch(`/api/spaces/${key}`, { name: 'Mine now' })).status).toBe(403)
+      expect((await member.get(`/api/spaces/${key}/permissions`)).status).toBe(403)
+
+      const grants = await json<SpaceGrantDto[]>(await admin.put(`/api/spaces/${key}/permissions`, { grants: [{ principalType: 'user', principalId: member.id, perms: ['Comment', 'View'] }] }))
+      expect(grants).toEqual([{ principalType: 'user', principalId: member.id, name: 'Mo Member', perms: ['View', 'Comment'] }])
+      expect((await json<SpaceDto>(await member.get(`/api/spaces/${key}`))).myPermissions).toEqual(['View', 'Comment'])
+
+      await admin.put(`/api/spaces/${key}/permissions`, { grants: [] })
+      expect((await member.get(`/api/spaces/${key}`)).status).toBe(404)
+      expect((await json<SpaceDto[]>(await member.get('/api/spaces'))).map((s) => s.key)).not.toContain(key)
+      expect((await member.put(`/api/spaces/${key}/star`)).status).toBe(404)
+
+      const bad = await admin.put(`/api/spaces/${key}/permissions`, { grants: [{ principalType: 'group', principalId: 'g.nope', perms: ['View'] }] })
+      expect(bad.status).toBe(400)
+      expect((await admin.put(`/api/spaces/${key}/permissions`, { grants: [{ principalType: 'group', principalId: MEMBERS_GROUP_ID, perms: ['View'] }] })).status).toBe(200)
+      expect((await json<SpaceDto>(await member.get(`/api/spaces/${key}`))).myPermissions).toEqual(['View'])
+    })
+
+    it('lists people and groups for anyone signed in', async () => {
+      const { t } = await setup()
+      const member = await newMember(t)
+      const people = await json<UserDto[]>(await member.get('/api/users'))
+      expect(people.map((u) => u.id)).toContain(member.id)
+      expect((await json<{ id: string }[]>(await member.get('/api/groups'))).map((g) => g.id)).toContain(MEMBERS_GROUP_ID)
+      expect((await t.newClient().get('/api/users')).status).toBe(401)
+    })
+  })
 }
 
 export function sessionContract(target: () => ContractTarget) {

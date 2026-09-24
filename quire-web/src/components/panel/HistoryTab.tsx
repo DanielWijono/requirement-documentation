@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { Page } from '../../types'
-import { userById } from '../../data/mockData'
+import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { Lozenge } from '../ui/Lozenge'
 import { VersionCompareModal } from './VersionCompareModal'
 
 export function HistoryTab({ page }: { page: Page }) {
+  const userById = useUserLookup()
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
 
   if (page.versions.length === 0) {

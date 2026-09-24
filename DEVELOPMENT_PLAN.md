@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6i (web reads).
+- **Current phase:** Phase 6j (web: pages and comments).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6i: web reads from the API: spaces, lazy tree with skeletons, page view, home, history and details through query hooks with the old selector names; extend the fake and the contract suite route family by route family; tests move from `getBy` to `findBy`.
+2. Phase 6j: pages and comments on the API in the web app: tree, page view, editor (drafts with rev, publish with lock version, honest save states, the 409 banner), move/copy/archive/delete/restore, restrictions, history, labels, stars, comments. Extend the fake and the contract suite for each route family. Pages created in the local store today must move with it, so the whole family moves at once.
 
 ## Git rules
 
@@ -189,7 +189,8 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 4. **Comment:** view + `Comment`. **Create child:** `Add` + edit on the parent. **Delete/archive:** `Delete` or page owner. **Change restrictions:** edit. **Change the permissions matrix:** `Admin`.
 5. A page in a space you can't view returns 404; a restricted page returns 403 (the existing `Forbidden.tsx`). List endpoints filter in SQL, never in JS after pagination.
 6. Decided in 6d: view lists bind everyone, site admins included, and drafts stay private to their author and collaborators. Trashed pages and pages in archived spaces are read-only; archived spaces accept no new pages. Anyone signed in may create a space. The API's `visiblePagesSql` / `visibleSpacesSql` are tested to agree with the pure evaluator on a shared fixture.
-7. Decided in 6e: a page's owner can see their own page in the trash (so they can undo a delete); moves stay within a space; copy duplicates one page as a new draft next to the original; restoring a page whose parent is still in the trash puts it at the top of the space; whoever sets a non-empty restriction list is always kept on it; bodies are sanitized with an allowlist of the editor's schema before they are stored.
+7. Decided in 6i: the web sub-phases are sliced by route family (people + spaces, then pages + comments, then home + search + cleanup) instead of reads-then-writes, so `main` never has reads from the API while writes still go to the local store. Web test code is now type-checked (`tsconfig.test.json` in `tsc -b`). Spaces are addressed by id or key; web URLs keep ids.
+8. Decided in 6e: a page's owner can see their own page in the trash (so they can undo a delete); moves stay within a space; copy duplicates one page as a new draft next to the original; restoring a page whose parent is still in the trash puts it at the top of the space; whoever sets a non-empty restriction list is always kept on it; bodies are sanitized with an allowlist of the editor's schema before they are stored.
 
 ### Database outline
 - Auth: Better Auth `user` (+ `color_seed`, `site_role`, `deactivated_at`), `session`, `account`, `verification`; `invites`; `groups`, `group_members`.
@@ -209,9 +210,9 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - [x] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
 - [x] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
 - [x] **6h web foundation:** `apiClient`, QueryClient, MSW fake + contract suite, providers in `renderApp`, `useSession` replacing `currentUser` (10 files), Login / Accept invite / Forgot and Reset password routes, route guard, Vite proxy `/api` → `:3000`.
-- [ ] **6i web reads:** spaces, tree, page view, home, history and details from queries.
-- [ ] **6j web writes:** mutations; honest save states (§6.5: Saving…, Saved, Offline, Couldn't save – retry); blocking confirm only for unsent changes (§9.2); 409 shows a non-dismissible banner (Reload / Copy my changes).
-- [ ] **6k web rest:** server search and palette, settings and permissions matrix, share modal with inherited restrictions; remove `contentStore` persist/migrate, `persistence.test.ts` and `mockData` from the app bundle.
+- [x] **6i web: people and spaces** (re-sliced, see below): users and groups queries replace `userById`/`users`; spaces directory, overview, settings (details, permissions matrix, archive, delete) and create-space run on the API, with skeleton / retry / Not found states.
+- [ ] **6j web: pages and comments:** tree, page view, history and details from queries; page mutations; honest save states (§6.5: Saving…, Saved, Offline, Couldn't save – retry); blocking confirm only for unsent changes (§9.2); 409 shows a non-dismissible banner (Reload / Copy my changes).
+- [ ] **6k web: home, search and cleanup:** home lists, server search and palette, share modal with inherited restrictions; remove `contentStore` persist/migrate, `persistence.test.ts` and `mockData` from the app bundle.
 - [ ] **6l realtime:** Hocuspocus service, Yjs doc per draft, Tiptap Collaboration/Caret, presence avatars, structural-event banner (§9.3, moved here from Phase 3), comment anchors on Yjs relative positions.
 - [ ] **6m deploy:** `compose.prod.yaml` with Caddy (TLS, static web, `/api` and `/collab` proxy, CSP), migration job, nightly `pg_dump` with a restore runbook, SMTP config, env docs. Smoke-tested locally; no VPS yet.
 
@@ -241,6 +242,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-24:** Phase 6i done (people and spaces): `useUsers`/`useUserLookup`/`useGroups`, `useSpaces`/`useSpace` plus star, watch, create, update (key renames too), archive, delete and permission-matrix mutations with optimistic updates; `useSpaceRoute` shows a skeleton, an error with retry, or Not found; the local store lost its space actions. API: spaces found by id or key, PATCH can change the key (409 when taken). Fake API gained the spaces family; the contract suite covers it against both targets (10 cases). Web tests are now type-checked. Tests: shared 58, api 154, web 217.
 - **2026-09-24:** Phase 6h done: web `apiClient` (typed `ApiError`, offline detection, If-Match), TanStack Query client (no retries on 4xx), `useSession` / `useCurrentUser` / sign-in / sign-out hooks, Login, Accept invite, Forgot and Reset password screens, `RequireSession` guard with a `next` redirect limited to in-app paths, Vite proxy `/api` → `:3000`, Log out in the account menu. Tests: an MSW fake backend (`quire-web/tests/fakeApi`) seeded from the shared seed; a shared contract suite (`@quire/shared/contract`) that passes against both the fake and the real API; existing UI tests run signed in through the fake. Manually checked sign-in through the Vite proxy against a seeded database (HttpOnly session cookie, `/me`, spaces, search). Tests: shared 58, api 149, web 207.
 - **2026-09-24:** Phase 6g done: `GET /search` (`websearch_to_tsquery` with stemming, `ts_rank` + title trigram similarity, typo-tolerant titles, `ts_headline` snippets returned as plain-text parts, never HTML), filters (space, type, contributor, modified, label) with per-filter `relaxed` counts, offset cursors; `GET /search/quick` for the palette (title prefix first, own drafts included, matching spaces). Restricted pages, drafts and hidden spaces never appear or count. Tests: shared 58, api 143.
 - **2026-09-24:** Phase 6f done: comments (threads one level deep; replying to a reply joins its thread; author-only edits; author or space admin soft-deletes, with a placeholder kept while replies exist; resolve/reopen on threads), labels (`PUT /pages/:id/labels` normalizes to lower-case-with-dashes; `GET /labels?q` counts only visible pages), `POST /pages/:id/views`, `GET /me/recent|starred|drafts`. Tests: shared 56, api 135.

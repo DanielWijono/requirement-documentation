@@ -1,12 +1,14 @@
-import { sessionContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
+import { sessionContract, spacesContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
 import { SEED_PASSWORD } from '@quire/shared/seed'
 import { fakeDb, SEED_ADMIN_ID } from '../fakeApi/db'
 
 // The same suite runs against the real API (quire-api/tests/contract.test.ts).
-// A separate origin keeps these clients away from the jsdom document's cookies.
-const ORIGIN = 'http://contract.test'
+// MSW remembers cookies per origin, so each client gets its own origin (and none shares the
+// jsdom document's): clients stay as independent as separate browsers.
+let clients = 0
 
 function fakeClient(): ContractClient {
+  const ORIGIN = `http://client-${++clients}.contract.test`
   const jar = new Map<string, string>()
   async function request(method: string, path: string, body?: unknown) {
     const res = await fetch(`${ORIGIN}${path}`, {
@@ -25,7 +27,13 @@ function fakeClient(): ContractClient {
     }
     return res
   }
-  return { get: (path) => request('GET', path), post: (path, body = {}) => request('POST', path, body) }
+  return {
+    get: (path) => request('GET', path),
+    post: (path, body = {}) => request('POST', path, body),
+    put: (path, body = {}) => request('PUT', path, body),
+    patch: (path, body = {}) => request('PATCH', path, body),
+    delete: (path) => request('DELETE', path),
+  }
 }
 
 const target = (): ContractTarget => ({
@@ -35,3 +43,4 @@ const target = (): ContractTarget => ({
 })
 
 sessionContract(target)
+spacesContract(target)

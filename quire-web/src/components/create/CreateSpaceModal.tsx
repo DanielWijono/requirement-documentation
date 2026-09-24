@@ -2,11 +2,18 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { useContentStore } from '../../store/contentStore'
+import { useCreateSpace } from '../../queries/spaces'
+import { ApiError } from '../../lib/apiClient'
+
+/** A key from the name when none is typed: its first letters and digits, starting with a letter. */
+function keyFromName(name: string) {
+  const letters = name.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^[0-9]+/, '')
+  return letters.length >= 2 ? letters.slice(0, 4) : 'SPACE'
+}
 
 export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
-  const createSpace = useContentStore((s) => s.createSpace)
+  const createSpace = useCreateSpace()
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
   const [description, setDescription] = useState('')
@@ -14,13 +21,22 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
 
   function handleCreate() {
     if (!name.trim()) return
-    const id = createSpace({ name: name.trim(), key: key.trim() || name.slice(0, 4), description, icon })
-    setName('')
-    setKey('')
-    setDescription('')
-    onClose()
-    navigate(`/spaces/${id}`)
+    createSpace.mutate(
+      { name: name.trim(), key: key.trim() || keyFromName(name), description, icon },
+      {
+        onSuccess: (space) => {
+          setName('')
+          setKey('')
+          setDescription('')
+          createSpace.reset()
+          onClose()
+          navigate(`/spaces/${space.id}`)
+        },
+      },
+    )
   }
+
+  const error = createSpace.error instanceof ApiError ? createSpace.error : null
 
   return (
     <Modal
@@ -32,7 +48,7 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleCreate} disabled={!name.trim()}>
+          <Button variant="primary" onClick={handleCreate} disabled={!name.trim()} loading={createSpace.isPending}>
             Create space
           </Button>
         </>
@@ -78,6 +94,11 @@ export function CreateSpaceModal({ open, onClose }: { open: boolean; onClose: ()
             className="t-ui-md w-full resize-none rounded-(--radius-sm) border border-(--color-border-strong) p-2 bg-(--color-bg-canvas)"
           />
         </div>
+        {error && (
+          <p role="alert" className="t-ui-sm text-(--status-danger-text)">
+            {error.code === 'key_taken' ? 'Another space already uses that key.' : error.offline ? error.message : `Couldn’t create the space: ${error.message}`}
+          </p>
+        )}
       </div>
     </Modal>
   )

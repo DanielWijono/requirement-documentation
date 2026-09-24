@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Paperclip, Tag } from 'lucide-react'
 import type { Page } from '../../types'
-import { userById } from '../../data/mockData'
+import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -14,6 +14,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function DetailsTab({ page }: { page: Page }) {
+  const userById = useUserLookup()
   const owner = userById(page.ownerId)
   const created = page.versions[page.versions.length - 1]
 

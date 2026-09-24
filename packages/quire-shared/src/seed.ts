@@ -583,3 +583,22 @@ export const SEED_PASSWORD = 'quire-dev-password'
 export function seedEmail(name: string) {
   return `${name.toLowerCase()}@quire.local`
 }
+
+const UNIT_MS: Record<string, number> = {
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+  week: 7 * 86_400_000,
+  month: 30 * 86_400_000,
+  year: 365 * 86_400_000,
+}
+
+/** Turn a seed label such as "3 hours ago" or "Yesterday" into a timestamp before `now`. */
+export function labelToDate(label: string, now: Date): Date {
+  const text = label.trim().toLowerCase()
+  if (text === 'yesterday') return new Date(now.getTime() - UNIT_MS.day)
+  const m = /^(\d+|a|an)\s+(minute|hour|day|week|month|year)s?\s+ago$/.exec(text)
+  if (!m) return now
+  const n = m[1] === 'a' || m[1] === 'an' ? 1 : Number(m[1])
+  return new Date(now.getTime() - n * UNIT_MS[m[2]])
+}

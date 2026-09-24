@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { useUIStore } from '../../store/uiStore'
 import { ancestorChainIn, useContentStore, usePageTree } from '../../store/contentStore'
-import { userById, users } from '../../data/mockData'
+import { useUserList, useUserLookup } from '../../queries/users'
 import { useCurrentUser } from '../../hooks/useSession'
 import { pageUrl } from './usePageActions'
 import type { Page } from '../../types'
@@ -32,6 +32,8 @@ export function ShareModal({ page, open, onClose }: { page: Page; open: boolean;
 }
 
 function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) {
+  const userById = useUserLookup()
+  const users = useUserList()
   const currentUser = useCurrentUser()
   const navigate = useNavigate()
   const updatePageMeta = useContentStore((s) => s.updatePageMeta)

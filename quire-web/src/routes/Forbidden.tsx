@@ -1,11 +1,12 @@
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
-import { userById } from '../data/mockData'
+import { useUserLookup } from '../queries/users'
 import { Button } from '../components/ui/Button'
 import type { Page } from '../types'
 
 /** 403: deliberately never shows the page title or content. */
 export function Forbidden({ page, action = 'view' }: { page: Page; action?: 'view' | 'edit' }) {
+  const userById = useUserLookup()
   const owner = userById(page.ownerId)
   const [requested, setRequested] = useState(false)
   return (

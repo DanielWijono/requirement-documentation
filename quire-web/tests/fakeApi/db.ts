@@ -1,5 +1,17 @@
-import { initialsOf, type SiteRole, type UserDto } from '@quire/shared'
-import { SEED_PASSWORD, seedEmail, users as seedUsers } from '@quire/shared/seed'
+import {
+  ALL_PERMS,
+  initialsOf,
+  MEMBER_DEFAULT_PERMS,
+  MEMBERS_GROUP_ID,
+  subjectOf,
+  type GroupDto,
+  type PageTreeNode,
+  type SiteRole,
+  type SpaceGrant,
+  type Subject,
+  type UserDto,
+} from '@quire/shared'
+import { labelToDate, pageTree as seedTree, SEED_PASSWORD, seedEmail, spaces as seedSpaces, users as seedUsers } from '@quire/shared/seed'
 
 /**
  * The fake backend's in-memory state, seeded like `npm run db:seed` so UI tests see the demo workspace.
@@ -11,8 +23,26 @@ export const SEED_ADMIN_ID = 'u.daniel'
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const FAKE_ORIGIN = 'http://localhost:3000'
 
-interface FakeUser extends UserDto {
+export interface FakeUser extends UserDto {
   password: string
+}
+
+export interface FakeSpace {
+  id: string
+  key: string
+  name: string
+  icon: string
+  description: string
+  ownerId: string
+  archived: boolean
+  lastActivityAt: string
+  grants: SpaceGrant[]
+  /** Published pages, until pages move into the fake. */
+  pageCount: number
+}
+
+export interface FakeGroup extends Omit<GroupDto, 'memberCount'> {
+  memberIds: string[]
 }
 
 interface FakeInvite {
@@ -39,6 +69,11 @@ class FakeDb {
   /** Reset token → user id. */
   resets = new Map<string, string>()
   mail: FakeMail[] = []
+  groups = new Map<string, FakeGroup>()
+  spaces = new Map<string, FakeSpace>()
+  /** `${userId}:${spaceId}` */
+  spaceStars = new Set<string>()
+  spaceWatches = new Set<string>()
 
   constructor() {
     this.reset()
@@ -64,6 +99,40 @@ class FakeDb {
     this.invites = new Map()
     this.resets = new Map()
     this.mail = []
+    this.groups = new Map([[MEMBERS_GROUP_ID, { id: MEMBERS_GROUP_ID, name: 'All members', description: 'Everyone with an active account.', isSystem: true, memberIds: [] }]])
+    const now = new Date()
+    this.spaces = new Map(
+      seedSpaces.map((s) => [
+        s.id,
+        {
+          id: s.id,
+          key: s.key,
+          name: s.name,
+          icon: s.icon,
+          description: s.description,
+          ownerId: s.ownerId,
+          archived: s.archived,
+          lastActivityAt: labelToDate(s.lastActivity, now).toISOString(),
+          grants: [
+            { principalType: 'user', principalId: s.ownerId, perms: [...ALL_PERMS] },
+            { principalType: 'group', principalId: MEMBERS_GROUP_ID, perms: [...MEMBER_DEFAULT_PERMS] },
+          ],
+          pageCount: countPublished(seedTree[s.id] ?? []),
+        },
+      ]),
+    )
+    // Like the API seed: the admin's starred and watched flags become their stars and watches.
+    this.spaceStars = new Set(seedSpaces.filter((s) => s.starred).map((s) => `${SEED_ADMIN_ID}:${s.id}`))
+    this.spaceWatches = new Set(seedSpaces.filter((s) => s.watched).map((s) => `${SEED_ADMIN_ID}:${s.id}`))
+  }
+
+  subject(userId: string): Subject {
+    const groupIds = [...this.groups.values()].filter((g) => g.memberIds.includes(userId)).map((g) => g.id)
+    return subjectOf(userId, this.users.get(userId)!.siteRole, groupIds)
+  }
+
+  activeUserIds() {
+    return [...this.users.values()].filter((u) => !u.deactivated).map((u) => u.id)
   }
 
   userDto(id: string): UserDto {
@@ -110,6 +179,10 @@ class FakeDb {
     this.users.set(id, { id, ...input, initials: initialsOf(input.name), colorSeed: this.users.size % 8, deactivated: false })
     return id
   }
+}
+
+function countPublished(nodes: PageTreeNode[]): number {
+  return nodes.reduce((n, node) => n + (node.state === 'draft' ? 0 : 1) + countPublished(node.children), 0)
 }
 
 export const fakeDb = new FakeDb()

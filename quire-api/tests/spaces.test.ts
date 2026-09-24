@@ -167,6 +167,17 @@ describe('archiving and editing', () => {
     expect(await body<SpaceDto>(res)).toMatchObject({ name: 'Team HQ', icon: '🏠', description: 'Our space' })
     expect((await owner.patch('/api/spaces/TEAM', {})).status).toBe(400)
   })
+
+  it('finds spaces by id as well as key, and renames keys', async () => {
+    const team = await createTeam()
+    await createTeam('ops')
+    expect((await body<SpaceDto>(await member.get(`/api/spaces/${team.id}`))).key).toBe('TEAM')
+    expect(await body<SpaceDto>(await owner.patch(`/api/spaces/${team.id}`, { key: 'crew' }))).toMatchObject({ id: team.id, key: 'CREW' })
+    expect((await member.get('/api/spaces/TEAM')).status).toBe(404)
+    const taken = await owner.patch('/api/spaces/CREW', { key: 'OPS' })
+    expect(taken.status).toBe(409)
+    expect(await taken.json()).toMatchObject({ code: 'key_taken' })
+  })
 })
 
 /**

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { Menu } from '../ui/Menu'
 import { Tooltip } from '../ui/Tooltip'
-import { users } from '../../data/mockData'
+import { useUserList } from '../../queries/users'
 import type { WidthMode } from '../../types'
 import { promptForLink } from './linkPrompt'
 import { useActiveFormats } from './activeFormats'
@@ -85,6 +85,7 @@ export function EditorToolbar({
   widthMode: WidthMode
   onWidthModeChange: (m: WidthMode) => void
 }) {
+  const users = useUserList()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const active = useActiveFormats(editor)
 

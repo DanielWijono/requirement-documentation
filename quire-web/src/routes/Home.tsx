@@ -2,13 +2,16 @@ import { useNavigate } from 'react-router-dom'
 import { FileText, Rocket, Star } from 'lucide-react'
 import { isVisiblePage, useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
-import { followingFeed, userById } from '../data/mockData'
+import { followingFeed } from '../data/mockData'
+import { useUserLookup } from '../queries/users'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
+import { useSpaceList } from '../queries/spaces'
 
 export function Home() {
+  const userById = useUserLookup()
   const navigate = useNavigate()
-  const spaces = useContentStore((s) => s.spaces)
+  const spaces = useSpaceList()
   const pages = useContentStore((s) => s.pages)
   const recentlyViewed = useContentStore((s) => s.recentlyViewed)
   const openCreatePage = useUIStore((s) => s.openCreatePage)

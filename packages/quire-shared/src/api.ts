@@ -107,8 +107,8 @@ export const spaceCreateSchema = z.object({
 export type SpaceCreate = z.input<typeof spaceCreateSchema>
 
 export const spacePatchSchema = z
-  .object({ name: spaceName.optional(), description: spaceDescription.optional(), icon: spaceIcon.optional() })
-  .refine((v) => v.name !== undefined || v.description !== undefined || v.icon !== undefined, 'Nothing to update')
+  .object({ key: spaceKey.optional(), name: spaceName.optional(), description: spaceDescription.optional(), icon: spaceIcon.optional() })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to update')
 export type SpacePatch = z.infer<typeof spacePatchSchema>
 
 export const spaceGrantSchema = z.object({

@@ -4,10 +4,11 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import clsx from 'clsx'
 import { Archive, ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { usePageTree, useSpace, ancestorChainIn } from '../../store/contentStore'
+import { usePageTree, ancestorChainIn } from '../../store/contentStore'
 import { PageTreeItem } from './PageTreeItem'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { useSpace } from '../../queries/spaces'
 
 export function SpaceNav() {
   const { spaceId, pageId } = useParams()

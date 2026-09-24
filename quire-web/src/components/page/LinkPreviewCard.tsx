@@ -1,10 +1,11 @@
 import { createPortal } from 'react-dom'
 import { canView, useContentStore } from '../../store/contentStore'
+import { useSpace } from '../../queries/spaces'
 
 /** Hover card for internal page links (design.md §9.4). Restricted pages never leak their title. */
 export function LinkPreviewCard({ spaceId, pageId, rect }: { spaceId: string; pageId: string; rect: DOMRect }) {
   const page = useContentStore((s) => s.pages[pageId])
-  const space = useContentStore((s) => s.spaces.find((sp) => sp.id === spaceId))
+  const space = useSpace(spaceId)
   const visible = page && page.spaceId === spaceId && canView(page) && page.state !== 'deleted'
   const excerpt = visible
     ? (page.publishedHtml ?? page.contentHtml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)

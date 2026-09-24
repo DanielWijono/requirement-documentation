@@ -1,19 +1,19 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { Archive } from 'lucide-react'
-import { canView, useContentStore, useSpace } from '../store/contentStore'
+import { canView, useContentStore } from '../store/contentStore'
 import { useUIStore } from '../store/uiStore'
 import { Button } from '../components/ui/Button'
-import { NotFound } from './NotFound'
+import { useSpaceRoute } from '../components/space/useSpaceRoute'
 
 export function SpaceArchive() {
   const { spaceId } = useParams()
   const navigate = useNavigate()
-  const space = useSpace(spaceId)
+  const { space, fallback } = useSpaceRoute(spaceId)
   const pages = useContentStore((s) => s.pages)
   const restorePage = useContentStore((s) => s.restorePage)
   const pushToast = useUIStore((s) => s.pushToast)
 
-  if (!space) return <NotFound />
+  if (!space) return fallback
   const archived = Object.values(pages).filter((p) => p.spaceId === space.id && p.state === 'archived' && canView(p))
 
   return (

@@ -4,9 +4,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { useContentStore, ancestorChainIn, isVisiblePage } from '../store/contentStore'
-import { userById, users } from '../data/mockData'
+import { useUserList, useUserLookup } from '../queries/users'
 import { ageInDays } from '../lib/relativeTime'
 import type { Page } from '../types'
+import { useSpaceList } from '../queries/spaces'
 
 type Sort = 'relevance' | 'modified'
 type TypeFilter = 'page' | 'blog'
@@ -79,9 +80,11 @@ function applyFilters(pages: Page[], q: string, f: Filters) {
 }
 
 export function SearchResults() {
+  const userById = useUserLookup()
+  const users = useUserList()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const spaces = useContentStore((s) => s.spaces)
+  const spaces = useSpaceList()
   const pages = useContentStore((s) => s.pages)
   const pageTree = useContentStore((s) => s.pageTree)
 

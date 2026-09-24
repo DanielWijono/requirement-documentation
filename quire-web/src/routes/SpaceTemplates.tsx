@@ -1,14 +1,13 @@
 import { LayoutTemplate } from 'lucide-react'
 import { useParams } from 'react-router-dom'
-import { useSpace } from '../store/contentStore'
-import { NotFound } from './NotFound'
-import { TEMPLATES, templateOutline } from '../data/templates'
 
+import { TEMPLATES, templateOutline } from '../data/templates'
+import { useSpaceRoute } from '../components/space/useSpaceRoute'
 
 export function SpaceTemplates() {
   const { spaceId } = useParams()
-  const space = useSpace(spaceId)
-  if (!space) return <NotFound />
+  const { space, fallback } = useSpaceRoute(spaceId)
+  if (!space) return fallback
 
   return (
     <div className="flex-1 overflow-y-auto">

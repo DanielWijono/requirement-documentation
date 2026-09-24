@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ArchiveRestore, Info } from 'lucide-react'
 import type { Page } from '../../types'
-import { userById } from '../../data/mockData'
+import { useUserLookup } from '../../queries/users'
 import { useContentStore } from '../../store/contentStore'
 import { useUIStore } from '../../store/uiStore'
 
@@ -14,6 +14,7 @@ export function PageStateBanner({
   viewingDraft: boolean
   onToggleDraftView: () => void
 }) {
+  const userById = useUserLookup()
   const discardChanges = useContentStore((s) => s.discardChanges)
   const restorePage = useContentStore((s) => s.restorePage)
   const pushToast = useUIStore((s) => s.pushToast)
