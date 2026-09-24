@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 import type { AppEnv } from '../app.ts'
 import { ApiError, forbidden } from '../lib/errors.ts'
+import { loadSubject } from '../services/access.ts'
 
 /** Attach the signed-in person (or null) to every request. */
 export const loadSession: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -25,4 +26,9 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
 export function sessionUser(c: { var: AppEnv['Variables'] }) {
   if (!c.var.user) throw new ApiError(401, 'unauthenticated', 'Sign in to continue')
   return c.var.user
+}
+
+/** The signed-in person with their groups, ready for `evaluateAccess`. */
+export function sessionSubject(c: { var: AppEnv['Variables'] }) {
+  return loadSubject(c.var.db, sessionUser(c))
 }

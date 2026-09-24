@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SPACE_PERMISSIONS, type SpacePermission } from './types.ts'
 
 /** Every API error body: a stable machine code plus a message safe to show to people. */
 export const apiErrorSchema = z.object({ code: z.string(), message: z.string() })
@@ -82,4 +83,64 @@ export interface GroupDto {
 
 export interface GroupDetailDto extends GroupDto {
   members: UserDto[]
+}
+
+// ---------------------------------------------------------------------------
+// Spaces
+
+export const SPACE_KEY_PATTERN = /^[A-Z][A-Z0-9]{1,9}$/
+const spaceKey = z
+  .string()
+  .trim()
+  .transform((v) => v.toUpperCase())
+  .pipe(z.string().regex(SPACE_KEY_PATTERN, 'Use 2–10 letters or digits, starting with a letter'))
+const spaceName = z.string().trim().min(1).max(100)
+const spaceDescription = z.string().trim().max(1000)
+const spaceIcon = z.string().trim().min(1).max(16)
+
+export const spaceCreateSchema = z.object({
+  key: spaceKey,
+  name: spaceName,
+  description: spaceDescription.default(''),
+  icon: spaceIcon.default('📁'),
+})
+export type SpaceCreate = z.input<typeof spaceCreateSchema>
+
+export const spacePatchSchema = z
+  .object({ name: spaceName.optional(), description: spaceDescription.optional(), icon: spaceIcon.optional() })
+  .refine((v) => v.name !== undefined || v.description !== undefined || v.icon !== undefined, 'Nothing to update')
+export type SpacePatch = z.infer<typeof spacePatchSchema>
+
+export const spaceGrantSchema = z.object({
+  principalType: z.enum(['user', 'group']),
+  principalId: z.string().min(1),
+  perms: z.array(z.enum(SPACE_PERMISSIONS)).max(SPACE_PERMISSIONS.length),
+})
+export const spacePermissionsSchema = z.object({ grants: z.array(spaceGrantSchema).max(500) })
+export type SpacePermissionsInput = z.infer<typeof spacePermissionsSchema>
+
+export interface SpaceDto {
+  id: string
+  key: string
+  name: string
+  icon: string
+  description: string
+  ownerId: string
+  archived: boolean
+  lastActivityAt: string
+  pageCount: number
+  /** Active people who can view the space. */
+  memberCount: number
+  starred: boolean
+  watched: boolean
+  /** What the signed-in person may do here, `Admin` expanded. */
+  myPermissions: SpacePermission[]
+}
+
+export interface SpaceGrantDto {
+  principalType: 'user' | 'group'
+  principalId: string
+  /** The person's or group's display name. */
+  name: string
+  perms: SpacePermission[]
 }

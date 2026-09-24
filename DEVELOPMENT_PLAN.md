@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6d (authorization and spaces).
+- **Current phase:** Phase 6e (pages).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6d: `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars and watches.
+2. Phase 6e: page tree, CRUD, drafts and publish with 409 conflicts, versions, move/copy, archive/delete/restore, restrictions, collaborators, server-side HTML sanitizing. Use `pageForSubject` for single pages and `visiblePagesSql` for lists.
 
 ## Git rules
 
@@ -188,6 +188,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 3. **Edit:** view, plus space `Edit`, plus this page's own edit list if it has one.
 4. **Comment:** view + `Comment`. **Create child:** `Add` + edit on the parent. **Delete/archive:** `Delete` or page owner. **Change restrictions:** edit. **Change the permissions matrix:** `Admin`.
 5. A page in a space you can't view returns 404; a restricted page returns 403 (the existing `Forbidden.tsx`). List endpoints filter in SQL, never in JS after pagination.
+6. Decided in 6d: view lists bind everyone, site admins included, and drafts stay private to their author and collaborators. Trashed pages and pages in archived spaces are read-only; archived spaces accept no new pages. Anyone signed in may create a space. The API's `visiblePagesSql` / `visibleSpacesSql` are tested to agree with the pure evaluator on a shared fixture.
 
 ### Database outline
 - Auth: Better Auth `user` (+ `color_seed`, `site_role`, `deactivated_at`), `session`, `account`, `verification`; `invites`; `groups`, `group_members`.
@@ -202,7 +203,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - [x] **6a scaffold:** workspaces, `quire-shared`, Hono `/api/health`, `compose.yaml` (postgres, postgres-test, mailpit, api), test database harness, quality gates for every package.
 - [x] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
 - [x] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
-- [ ] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
+- [x] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
 - [ ] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
 - [ ] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
 - [ ] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
@@ -238,6 +239,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-24:** Phase 6d done: pure `evaluateSpaceAccess` / `evaluatePageAccess` in `quire-shared` (31 table cases), API access service (ancestor-chain recursive CTE, SQL list filters checked against the evaluator), spaces CRUD, archive/unarchive, permissions matrix (`GET|PUT /spaces/:key/permissions`), stars and watches, 404 for hidden spaces. Tests: shared 50, api 99 including a route × role matrix over seven roles.
 - **2026-09-23:** Phase 6c done: Better Auth (email + password, sign-up disabled, httpOnly SameSite=Lax cookies, rate limits on sign-in and reset, deactivated users blocked), invites (hashed single-use tokens, 7-day expiry, email via SMTP), password reset email, `bootstrap-admin` CLI, `/me`, users admin (roles, deactivation ends sessions), groups CRUD with a protected system group, Origin check on writes. Seeded people sign in with `quire-dev-password`. Tests: api 71 (invite and reset flows read the real Mailpit inbox), shared 19.
 - **2026-09-23:** Phase 6b done: Drizzle schema (21 tables) in three migrations (pg_trgm, schema, integrity triggers for reply depth, tree cycles and cross-space parents); `db:migrate` and `db:seed` (idempotent, refuses production); seed data and domain types moved to `@quire/shared` (the web app re-exports them unchanged). Tests: api 43, all passing.
 - **2026-09-23:** Phase 6a done: npm workspaces, `@quire/shared` (`relativeTime`, API error and health schemas), `quire-api` (Hono, `/api/health`, env loading with dev defaults, migration runner), `compose.yaml`, and a test harness that clones a migrated template database per worker and truncates between tests. Tests: shared 12, api 10, web 187, all passing.

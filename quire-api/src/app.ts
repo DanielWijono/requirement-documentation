@@ -10,6 +10,7 @@ import { loadSession } from './middleware/session.ts'
 import { groups } from './routes/groups.ts'
 import { health } from './routes/health.ts'
 import { invites } from './routes/invites.ts'
+import { spaces } from './routes/spaces.ts'
 import { me, users } from './routes/users.ts'
 
 export interface AppDeps {
@@ -47,6 +48,7 @@ export function createApp(deps: AppDeps) {
   app.route('/users', users)
   app.route('/groups', groups)
   app.route('/invites', invites)
+  app.route('/spaces', spaces)
 
   app.notFound((c) => c.json<ApiErrorBody>({ code: 'not_found', message: 'Not found' }, 404))
   app.onError((err, c) => {

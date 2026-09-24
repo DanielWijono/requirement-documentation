@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app.ts'
 import type { Db } from '../db/client.ts'
 import * as t from '../db/schema.ts'
-import { badRequest, conflict, notFound, readJson } from '../lib/errors.ts'
+import { badRequest, conflict, isUniqueViolation, notFound, readJson } from '../lib/errors.ts'
 import { requireAdmin, requireUser } from '../middleware/session.ts'
 import { toUserDto, userColumns } from '../services/users.ts'
 
@@ -22,10 +22,6 @@ async function loadGroup(db: Db, id: string) {
 function editable(group: typeof t.groups.$inferSelect) {
   if (group.isSystem) throw badRequest('system_group', 'The All members group is managed automatically')
   return group
-}
-
-function isUniqueViolation(err: unknown) {
-  return (err as { cause?: { code?: string } }).cause?.code === '23505'
 }
 
 async function detail(db: Db, group: typeof t.groups.$inferSelect): Promise<GroupDetailDto> {

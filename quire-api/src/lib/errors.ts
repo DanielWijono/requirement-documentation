@@ -34,3 +34,8 @@ export async function readJson<T extends z.ZodType>(req: { json: () => Promise<u
   }
   return parsed.data
 }
+
+/** A Postgres unique constraint failed (drizzle wraps the driver error in `cause`). */
+export function isUniqueViolation(err: unknown) {
+  return (err as { cause?: { code?: string } }).cause?.code === '23505'
+}
