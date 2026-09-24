@@ -332,3 +332,62 @@ export function pagesContract(target: () => ContractTarget) {
     })
   })
 }
+
+export function adminContract(target: () => ContractTarget) {
+  describe('contract: people, invites and groups', () => {
+    it('lists and revokes pending invites', async () => {
+      const t = target()
+      const admin = await signedIn(t, t.admin.email, t.admin.password)
+      const email = `pending-${unique()}@example.com`
+      const created = await json<{ id: string; email: string }>(await admin.post('/api/invites', { email, siteRole: 'admin' }))
+      const token = /\/invite\/([\w-]+)/.exec(await t.lastMailTo(email))?.[1]
+      const pending = await json<{ id: string; email: string; siteRole: string }[]>(await admin.get('/api/invites'))
+      expect(pending.find((i) => i.email === email)).toMatchObject({ id: created.id, siteRole: 'admin' })
+      expect((await admin.delete(`/api/invites/${created.id}`)).status).toBe(204)
+      expect((await admin.get(`/api/invites/${token}`)).status).toBe(404)
+      expect((await admin.delete(`/api/invites/${created.id}`)).status).toBe(404)
+    })
+
+    it('changes roles and deactivates people, never yourself', async () => {
+      const t = target()
+      const admin = await signedIn(t, t.admin.email, t.admin.password)
+      const me = await json<UserDto>(await admin.get('/api/me'))
+      const member = await newMember(t)
+      expect((await member.patch(`/api/users/${me.id}`, { siteRole: 'member' })).status).toBe(403)
+      expect((await admin.patch(`/api/users/${me.id}`, { siteRole: 'member' })).status).toBe(400)
+      expect((await json<UserDto>(await admin.patch(`/api/users/${member.id}`, { siteRole: 'admin' }))).siteRole).toBe('admin')
+      await admin.patch(`/api/users/${member.id}`, { siteRole: 'member' })
+
+      expect((await json<UserDto>(await admin.patch(`/api/users/${member.id}`, { deactivated: true }))).deactivated).toBe(true)
+      expect((await member.get('/api/me')).status).toBe(401)
+      expect((await json<UserDto[]>(await admin.get('/api/users'))).map((u) => u.id)).not.toContain(member.id)
+      expect((await json<UserDto[]>(await admin.get('/api/users?includeDeactivated=1'))).map((u) => u.id)).toContain(member.id)
+      await admin.patch(`/api/users/${member.id}`, { deactivated: false })
+      expect((await json<UserDto[]>(await admin.get('/api/users'))).map((u) => u.id)).toContain(member.id)
+    })
+
+    it('manages groups and cleans up their grants', async () => {
+      const t = target()
+      const admin = await signedIn(t, t.admin.email, t.admin.password)
+      const member = await newMember(t)
+      const name = `Team ${unique()}`
+      const group = await json<{ id: string; name: string; members: UserDto[] }>(await admin.post('/api/groups', { name }))
+      expect(group).toMatchObject({ name, members: [] })
+      expect((await admin.post('/api/groups', { name })).status).toBe(409)
+      expect((await member.post('/api/groups', { name: 'Mine' })).status).toBe(403)
+
+      const filled = await json<{ members: UserDto[] }>(await admin.put(`/api/groups/${group.id}/members`, { userIds: [member.id, member.id] }))
+      expect(filled.members.map((m) => m.id)).toEqual([member.id])
+      expect((await admin.put(`/api/groups/${group.id}/members`, { userIds: ['u.nobody'] })).status).toBe(400)
+      expect((await json<{ name: string }>(await admin.patch(`/api/groups/${group.id}`, { name: `${name} renamed` }))).name).toBe(`${name} renamed`)
+      expect((await admin.patch(`/api/groups/${MEMBERS_GROUP_ID}`, { name: 'Nope' })).status).toBe(400)
+
+      const key = `G${unique().replace(/[^a-z]/g, 'x').toUpperCase().slice(0, 5)}`
+      await admin.post('/api/spaces', { key, name: 'Group space' })
+      await admin.put(`/api/spaces/${key}/permissions`, { grants: [{ principalType: 'group', principalId: group.id, perms: ['View'] }] })
+      expect((await admin.delete(`/api/groups/${group.id}`)).status).toBe(204)
+      expect(await json<SpaceGrantDto[]>(await admin.get(`/api/spaces/${key}/permissions`))).toEqual([])
+      expect((await admin.get(`/api/groups/${group.id}`)).status).toBe(404)
+    })
+  })
+}

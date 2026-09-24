@@ -114,6 +114,7 @@ export interface FakeGroup extends Omit<GroupDto, 'memberCount'> {
 }
 
 interface FakeInvite {
+  id: string
   email: string
   siteRole: SiteRole
   inviterId: string
@@ -292,7 +293,7 @@ class FakeDb {
 
   createInvite(email: string, siteRole: SiteRole, inviterId: string) {
     const t = token()
-    this.invites.set(t, { email, siteRole, inviterId, expiresAt: Date.now() + INVITE_TTL_MS, acceptedAt: null })
+    this.invites.set(t, { id: crypto.randomUUID(), email, siteRole, inviterId, expiresAt: Date.now() + INVITE_TTL_MS, acceptedAt: null })
     this.mail.push({ to: email, text: `${this.users.get(inviterId)!.name} invited you to Quire.\n\nAccept the invite: ${FAKE_ORIGIN}/invite/${t}\n` })
     return t
   }

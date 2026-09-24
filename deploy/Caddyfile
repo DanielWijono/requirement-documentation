@@ -1,0 +1,35 @@
+# One site: the web app, with the API and co-editing under the same origin (no CORS, same cookies).
+# DOMAIN comes from .env. With DOMAIN=localhost Caddy uses its own local certificate authority.
+{$DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# WebSocket upgrades for real-time co-editing.
+	handle /collab* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv
+		# Hashed assets never change; everything else (the app shell, on any route) revalidates.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		# Pages render stored HTML: the API sanitizes it, and the CSP is the second line of defence.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss://{$DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}

@@ -5,6 +5,7 @@ import { AppShell } from './components/shell/AppShell'
 import { RequireSession } from './components/shell/RequireSession'
 import { createQueryClient } from './lib/queryClient'
 import { AcceptInvite, ForgotPassword, Login, ResetPassword } from './routes/Auth'
+import { AdminPeople } from './routes/AdminPeople'
 import { Home } from './routes/Home'
 import { SpacesDirectory } from './routes/SpacesDirectory'
 import { SpaceOverview } from './routes/SpaceOverview'
@@ -77,6 +78,7 @@ export default function App({ queryClient }: { queryClient?: QueryClient }) {
               }
             />
             <Route path="/search" element={<SearchResults />} />
+            <Route path="/admin/people" element={<AdminPeople />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

@@ -5,7 +5,6 @@ import {
   spaceCreateSchema,
   spacePatchSchema,
   spacePermissionsSchema,
-  type GroupDto,
   type SpaceDto,
   type SpaceFacts,
   type SpaceGrantDto,
@@ -87,20 +86,6 @@ function toggle(kind: 'star' | 'watch') {
 }
 
 export const spaceHandlers = [
-  http.get('*/api/users', withUser(() => {
-    const users = fakeDb.activeUserIds().map((id) => fakeDb.userDto(id))
-    return HttpResponse.json(users.sort((a, b) => a.name.localeCompare(b.name)))
-  })),
-
-  http.get('*/api/groups', withUser(() => {
-    const active = fakeDb.activeUserIds()
-    const groups: GroupDto[] = [...fakeDb.groups.values()].map(({ memberIds, ...g }) => ({
-      ...g,
-      memberCount: g.id === MEMBERS_GROUP_ID ? active.length : memberIds.filter((id) => active.includes(id)).length,
-    }))
-    return HttpResponse.json(groups.sort((a, b) => a.name.localeCompare(b.name)))
-  })),
-
   http.get('*/api/spaces', withUser((_info, user) => {
     const list = [...fakeDb.spaces.values()].filter((s) => visibleSpace(s.id, user.id)).sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key))
     return HttpResponse.json(list.map((s) => spaceDto(s, user.id)))

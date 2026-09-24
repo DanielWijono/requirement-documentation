@@ -153,13 +153,13 @@ export function TopBar() {
             </button>
           }
           items={[
-            { label: 'Your profile' },
+            { label: `${currentUser.name} · ${currentUser.email}`, disabled: true },
             { label: '', divider: true },
             { label: `Theme: ${theme}`, onSelect: () => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light') },
             { label: `Density: ${density === 'comfortable' ? 'Comfortable' : 'Compact'}`, onSelect: () => setDensity(density === 'comfortable' ? 'compact' : 'comfortable') },
             { label: `Reading font: ${readingFont === 'serif' ? 'Serif' : 'Sans'}`, onSelect: () => setReadingFont(readingFont === 'serif' ? 'sans' : 'serif') },
             { label: '', divider: true },
-            { label: 'Settings' },
+            ...(currentUser.siteRole === 'admin' ? [{ label: 'People', onSelect: () => navigate('/admin/people') }] : []),
             { label: 'Log out', onSelect: () => signOut.mutate(undefined, { onSettled: () => navigate('/login', { replace: true }) }) },
           ]}
         />

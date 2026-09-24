@@ -1,6 +1,7 @@
 import { inviteAcceptSchema, inviteCreateSchema, MIN_PASSWORD_LENGTH, type InviteLookupDto } from '@quire/shared'
 import { http, HttpResponse } from 'msw'
 import { fakeDb, SESSION_COOKIE } from './db'
+import { adminHandlers } from './admin'
 import { contentHandlers } from './content'
 import { pageHandlers } from './pages'
 import { spaceHandlers } from './spaces'
@@ -47,8 +48,12 @@ export const handlers = [
     const input = await body(request, inviteCreateSchema)
     if (input instanceof Response) return input
     if (fakeDb.userByEmail(input.email)) return fail(409, 'already_member', 'That person already has an account')
-    fakeDb.createInvite(input.email, input.siteRole, user.id)
-    return HttpResponse.json({ email: input.email, siteRole: input.siteRole, invitedBy: user.name }, { status: 201 })
+    const token = fakeDb.createInvite(input.email, input.siteRole, user.id)
+    const invite = fakeDb.invites.get(token)!
+    return HttpResponse.json(
+      { id: invite.id, email: input.email, siteRole: input.siteRole, invitedBy: user.name, expiresAt: new Date(invite.expiresAt).toISOString() },
+      { status: 201 },
+    )
   }),
 
   http.get('*/api/invites/:token', ({ params }) => {
@@ -71,6 +76,7 @@ export const handlers = [
   }),
 
   // Specific paths before the patterns that would swallow them (/search/quick before /search, etc.).
+  ...adminHandlers,
   ...contentHandlers,
   ...pageHandlers,
   ...spaceHandlers,

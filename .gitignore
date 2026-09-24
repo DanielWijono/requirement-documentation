@@ -6,3 +6,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Production database dumps (compose.prod.yaml)
+backups/

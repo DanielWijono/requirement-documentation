@@ -1,5 +1,5 @@
 import { MEMBERS_GROUP_ID } from '@quire/shared'
-import { pagesContract, sessionContract, spacesContract, type ContractTarget } from '@quire/shared/contract'
+import { adminContract, pagesContract, sessionContract, spacesContract, type ContractTarget } from '@quire/shared/contract'
 import { beforeEach } from 'vitest'
 import * as t from '../src/db/schema.ts'
 import { createUserWithPassword } from '../src/services/users.ts'
@@ -24,3 +24,4 @@ beforeEach(async () => {
 sessionContract(() => target)
 spacesContract(() => target)
 pagesContract(() => target)
+adminContract(() => target)

@@ -1,4 +1,4 @@
-import { pagesContract, sessionContract, spacesContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
+import { adminContract, pagesContract, sessionContract, spacesContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
 import { SEED_PASSWORD } from '@quire/shared/seed'
 import { fakeDb, SEED_ADMIN_ID } from '../fakeApi/db'
 
@@ -46,3 +46,4 @@ const target = (): ContractTarget => ({
 sessionContract(target)
 spacesContract(target)
 pagesContract(target)
+adminContract(target)
