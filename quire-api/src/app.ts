@@ -1,6 +1,7 @@
 import type { ApiErrorBody, SiteRole } from '@quire/shared'
 import { Hono } from 'hono'
 import { createAuth, type Auth } from './auth.ts'
+import { createCollab, type Collab } from './collab.ts'
 import type { Db } from './db/client.ts'
 import type { Env } from './env.ts'
 import { ApiError } from './lib/errors.ts'
@@ -28,10 +29,11 @@ export interface SessionUser {
   siteRole: SiteRole
 }
 
-export type AppEnv = { Variables: AppDeps & { auth: Auth; user: SessionUser | null } }
+export type AppEnv = { Variables: AppDeps & { auth: Auth; collab: Collab; user: SessionUser | null } }
 
 export function createApp(deps: AppDeps) {
   const auth = createAuth(deps)
+  const collab = createCollab({ db: deps.db, env: deps.env, auth })
   const app = new Hono<AppEnv>().basePath('/api')
 
   app.use(async (c, next) => {
@@ -39,6 +41,7 @@ export function createApp(deps: AppDeps) {
     c.set('env', deps.env)
     c.set('mailer', deps.mailer)
     c.set('auth', auth)
+    c.set('collab', collab)
     await next()
   })
 
@@ -66,7 +69,8 @@ export function createApp(deps: AppDeps) {
     return c.json<ApiErrorBody>({ code: 'internal', message: 'Something went wrong' }, 500)
   })
 
-  return app
+  // The co-editing server shares the app's auth and database; `server.ts` attaches it to the HTTP server.
+  return Object.assign(app, { collab })
 }
 
 export type App = ReturnType<typeof createApp>

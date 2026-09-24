@@ -200,7 +200,8 @@ export const pages = new Hono<AppEnv>()
         ? await db.insert(t.pageDrafts).values({ pageId: ctx.page.id, html: clean, updatedById: me.id, updatedAt: now }).onConflictDoNothing().returning()
         : await db
             .update(t.pageDrafts)
-            .set({ html: clean, rev: sql`${t.pageDrafts.rev} + 1`, updatedById: me.id, updatedAt: now })
+            // A plain save makes the HTML the source again; the next co-editing session starts from it.
+            .set({ html: clean, rev: sql`${t.pageDrafts.rev} + 1`, ystate: null, updatedById: me.id, updatedAt: now })
             .where(and(eq(t.pageDrafts.pageId, ctx.page.id), eq(t.pageDrafts.rev, expected)))
             .returning()
     if (!saved) {
@@ -218,6 +219,8 @@ export const pages = new Hono<AppEnv>()
     need(ctx.access.edit, 'You cannot edit this page')
     if (ctx.page.status === 'draft') throw badRequest('unpublished', 'A page that was never published has no other version to go back to')
     await c.var.db.delete(t.pageDrafts).where(eq(t.pageDrafts.pageId, ctx.page.id))
+    c.var.collab.replace(ctx.page.id, ctx.page.publishedHtml ?? '<p></p>')
+    c.var.collab.notify(ctx.page.id, { type: 'discarded', byUserId: sessionUser(c).id })
     return c.body(null, 204)
   })
 
@@ -227,10 +230,13 @@ export const pages = new Hono<AppEnv>()
     need(ctx.access.edit, 'You cannot edit this page')
     const lockVersion = requireIfMatch(c.req.header('if-match'))
     const { comment } = await readJson(c.req, publishSchema)
+    // Publish what co-editors see now, not what the last debounced save wrote.
+    await c.var.collab.flush(ctx.page.id)
     const [draft] = await db.select().from(t.pageDrafts).where(eq(t.pageDrafts.pageId, ctx.page.id))
     if (!draft) throw badRequest('nothing_to_publish', 'There are no changes to publish')
     const ok = await db.transaction((tx) => publishHtml(tx, ctx, sessionUser(c).id, lockVersion, draft.html, comment, draft.rev))
     if (!ok) throw conflict('page_conflict', 'Someone else published this page', { current: await toPageDto(db, subject, await pageForSubject(db, subject, ctx.page.id)) })
+    c.var.collab.notify(ctx.page.id, { type: 'published', byUserId: sessionUser(c).id })
     return pageJson(c, subject, ctx.page.id)
   })
 
@@ -269,6 +275,10 @@ export const pages = new Hono<AppEnv>()
     const html = row.html
     const ok = await db.transaction((tx) => publishHtml(tx, ctx, sessionUser(c).id, lockVersion, html, `Restored version ${row.version}`, null))
     if (!ok) throw conflict('page_conflict', 'Someone else published this page', { current: await toPageDto(db, subject, await pageForSubject(db, subject, ctx.page.id)) })
+    // Open editors now hold the restored version rather than writing the old draft back over it.
+    await db.delete(t.pageDrafts).where(eq(t.pageDrafts.pageId, ctx.page.id))
+    c.var.collab.replace(ctx.page.id, html)
+    c.var.collab.notify(ctx.page.id, { type: 'published', byUserId: sessionUser(c).id })
     return pageJson(c, subject, ctx.page.id)
   })
 
@@ -288,6 +298,7 @@ export const pages = new Hono<AppEnv>()
         lockVersion: sql`${t.pages.lockVersion} + 1`,
       })
       .where(eq(t.pages.id, ctx.page.id))
+    c.var.collab.notify(ctx.page.id, { type: 'moved', byUserId: sessionUser(c).id })
     return pageJson(c, subject, ctx.page.id)
   })
 
@@ -353,6 +364,8 @@ export const pages = new Hono<AppEnv>()
       ]
       if (rows.length) await tx.insert(t.pageRestrictions).values(rows)
     })
+    // Editors reconnect and are checked again; anyone who lost edit access drops out.
+    for (const id of await subtreeIds(db, ctx.page.id)) c.var.collab.recheck(id)
     return c.json(await restrictionsDto(db, ctx))
   })
 
@@ -460,6 +473,8 @@ async function trash(c: C, action: 'archive' | 'delete' | 'restore'): Promise<Re
       }
     }
   })
+  const event = action === 'restore' ? 'restored' : action === 'archive' ? 'archived' : 'deleted'
+  for (const id of ids) c.var.collab.notify(id, { type: event, byUserId: sessionUser(c).id })
   return pageJson(c, subject, ctx.page.id)
 }
 

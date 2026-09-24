@@ -2,23 +2,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Highlight from '@tiptap/extension-highlight'
-import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import ImageExt from '@tiptap/extension-image'
-import { Table } from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import { COLLAB_FIELD, schemaExtensions } from '@quire/editor'
 import clsx from 'clsx'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, CloudOff, Loader2 } from 'lucide-react'
 import type { PageDto, PageTreeDto, WIDTH_MODES } from '@quire/shared'
 import { useUIStore } from '../../store/uiStore'
 import { useCurrentUser } from '../../hooks/useSession'
 import { ApiError } from '../../lib/apiClient'
+import { api } from '../../lib/apiClient'
 import { pageKeys, refreshPage, saveDraft, usePatchPage, usePublish } from '../../queries/pages'
 import { useSpace } from '../../queries/spaces'
 import { useUserLookup } from '../../queries/users'
@@ -33,7 +27,9 @@ import { useSlashMenu } from './useSlashMenu'
 import { BubbleToolbar } from './BubbleToolbar'
 import { Callout } from './extensions/callout'
 import { Expand } from './extensions/expand'
-import { Mention } from './extensions/mention'
+import { collabEnabled, useCollabSession, whenSynced, type CollabSession } from './useCollab'
+import { avatarColor } from '../../lib/avatarColor'
+import { PageSkeleton } from '../ui/Skeleton'
 import { EditorShortcuts } from './extensions/editorShortcuts'
 import { SmartLinks } from './extensions/smartLinks'
 import { promptForLink } from './linkPrompt'
@@ -63,22 +59,46 @@ export function EditorShell() {
   const { pageId } = useParams()
   const { page, fallback } = usePageRoute(pageId)
   const userById = useUserLookup()
+  const me = useCurrentUser()
   const qc = useQueryClient()
   // Bumped by Reload after a conflict: remounts the editor on what the server has now.
   const [generation, setGeneration] = useState(0)
+  const collaborative = collabEnabled() && Boolean(page?.access?.edit)
+  const collab = useCollabSession(pageId ?? '', me, collaborative)
 
   if (!page) return fallback
   if (!page.access?.edit) return <Forbidden action="edit" ownerName={userById(page.ownerId).name} />
+  if (collaborative && !collab) return <PageSkeleton />
 
   async function reload() {
     await qc.refetchQueries({ queryKey: pageKeys.page(page!.id), exact: true })
     setGeneration((g) => g + 1)
   }
 
-  return <EditorWorkspace key={`${page.id}:${generation}`} page={page} onReload={reload} />
+  return <EditorWorkspace key={`${page.id}:${generation}:${collab ? 'collab' : 'rest'}`} page={page} collab={collab} onReload={reload} />
 }
 
-function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promise<void> }) {
+/** What another person just did to the page, as editors see it. */
+function eventMessage(type: string, name: string) {
+  switch (type) {
+    case 'published':
+      return `${name} published this page.`
+    case 'moved':
+      return `${name} moved this page.`
+    case 'archived':
+      return `${name} archived this page. Your changes are kept in its draft.`
+    case 'deleted':
+      return `${name} deleted this page. Your changes are kept in its draft.`
+    case 'restored':
+      return `${name} restored this page.`
+    case 'discarded':
+      return `${name} discarded the unpublished changes, so this is the published version again.`
+    default:
+      return `${name} changed who can see or edit this page.`
+  }
+}
+
+function EditorWorkspace({ page, collab, onReload }: { page: Page; collab: CollabSession | null; onReload: () => Promise<void> }) {
   const currentUser = useCurrentUser()
   const { spaceId } = useParams()
   const navigate = useNavigate()
@@ -89,6 +109,7 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
   const pushToast = useUIStore((s) => s.pushToast)
   const setPendingCommentAnchor = useUIStore((s) => s.setPendingCommentAnchor)
   const openRightPanel = useUIStore((s) => s.openRightPanel)
+  const userById = useUserLookup()
 
   const [title, setTitle] = useState(page.title === 'Untitled' ? '' : page.title)
   const [widthMode, setWidthMode] = useState<WidthMode>(page.widthMode)
@@ -117,20 +138,9 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: false }),
-      Highlight,
-      Link.configure({ openOnClick: false }),
+      // The shared document schema, with the web's editing views for callouts and expands.
+      ...schemaExtensions({ collaborative: Boolean(collab) }).map((ext) => (ext.name === 'callout' ? Callout : ext.name === 'expand' ? Expand : ext)),
       Placeholder.configure({ placeholder: 'Body… type / to insert' }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      ImageExt,
-      Table.configure({ resizable: true }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      Callout,
-      Expand,
-      Mention,
       EditorShortcuts.configure({
         onLink: () => {
           if (editorRef.current) promptForLink(editorRef.current)
@@ -138,10 +148,18 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
         onEscape: () => document.querySelector<HTMLElement>('#editor-toolbar [tabindex="0"]')?.focus(),
       }),
       SmartLinks.configure({ resolveTitle: (linkSpaceId, linkPageId) => cachedTitle(qc, linkSpaceId, linkPageId) }),
+      ...(collab
+        ? [
+            Collaboration.configure({ document: collab.document, field: COLLAB_FIELD }),
+            CollaborationCaret.configure({ provider: collab.provider, user: { name: currentUser.name, color: avatarColor(currentUser.colorSeed) } }),
+          ]
+        : []),
     ],
-    content: page.contentHtml,
+    // Co-editing takes the body from the shared document; plain editing from the page.
+    content: collab ? undefined : page.contentHtml,
     editorProps: { attributes: { class: 'prose max-w-none' } },
     onUpdate: () => {
+      if (collab) return
       dirty.current = true
       scheduleSave()
     },
@@ -165,6 +183,7 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
 
   /** Send the body if it changed; resolves true once the server has everything. */
   async function flush(): Promise<boolean> {
+    if (collab) return stateRef.current !== 'conflict' && (await whenSynced(collab.provider))
     if (saveTimer.current) clearTimeout(saveTimer.current)
     while (inFlight.current) await inFlight.current
     if (stateRef.current === 'conflict') return false
@@ -253,8 +272,25 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // While co-editing, the connection says whether the server has everything; title conflicts still win.
+  const shownState: SaveState = collab && saveState !== 'conflict' && saveState !== 'error' ? collab.status : saveState
+  useEffect(() => {
+    if (collab && stateRef.current !== 'conflict' && stateRef.current !== 'error') stateRef.current = collab.status
+  }, [collab, collab?.status])
+
+  // Someone else published while we were here: take the new lock version so our next publish isn't a conflict.
+  const events = collab?.events ?? []
+  const lastEvent = [...events].reverse().find((e) => e.byUserId !== currentUser.id)
+  useEffect(() => {
+    if (lastEvent?.type !== 'published' && lastEvent?.type !== 'restored') return
+    void qc.fetchQuery({ queryKey: pageKeys.page(page.id), queryFn: () => api.get<PageDto>(`/pages/${page.id}`), staleTime: 0 }).then((dto) => {
+      lockRef.current = dto.lockVersion
+      savedTitle.current = dto.title
+    })
+  }, [lastEvent, qc, page.id])
+
   // The browser's own "leave site?" prompt, only while something hasn't reached the server (§9.2).
-  const unsent = saveState !== 'saved'
+  const unsent = shownState !== 'saved'
   useEffect(() => {
     if (!unsent) return
     function warn(e: BeforeUnloadEvent) {
@@ -328,7 +364,8 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
 
   async function handleClose() {
     await saveMeta({ title: titleToSave() })
-    if (stateRef.current !== 'saved' || dirty.current) {
+    if (collab) await whenSynced(collab.provider, 1500)
+    if (shownState !== 'saved' || stateRef.current === 'conflict' || stateRef.current === 'error' || dirty.current || collab?.provider.hasUnsyncedChanges) {
       setCloseConfirmOpen(true)
       return
     }
@@ -355,11 +392,16 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
         <span className="t-ui-md-medium truncate">
           Editing &middot; {space?.key} {chain.length > 0 && `/ ${chain.map((c) => c.title).join(' / ')}`}
         </span>
-        <SaveIndicator state={saveState} secondsAgo={secondsAgo} onRetry={() => void flush()} />
+        <SaveIndicator state={shownState} secondsAgo={secondsAgo} onRetry={() => void flush()} />
         <div className="ml-auto flex items-center gap-3 shrink-0">
-          <Avatar user={currentUser} size={24} presence />
+          <div className="flex -space-x-2" aria-label="People editing">
+            <Avatar user={currentUser} size={24} presence />
+            {(collab?.peers ?? []).slice(0, 3).map((p) => (
+              <Avatar key={p.clientId} user={userById(p.userId)} size={24} presence />
+            ))}
+          </div>
           <div className="flex items-center">
-            <Button variant="primary" className="rounded-r-none" loading={publishing} disabled={saveState === 'conflict'} onClick={() => void handlePrimaryAction()}>
+            <Button variant="primary" className="rounded-r-none" loading={publishing} disabled={shownState === 'conflict'} onClick={() => void handlePrimaryAction()}>
               {primaryLabel}
             </Button>
             <Menu
@@ -375,6 +417,12 @@ function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promi
           </div>
         </div>
       </header>
+
+      {lastEvent && saveState !== 'conflict' && (
+        <div role="status" className="shrink-0 flex items-center gap-2 px-4 py-2 bg-(--status-neutral-subtle) text-(--status-neutral-text) t-ui-md">
+          {eventMessage(lastEvent.type, userById(lastEvent.byUserId).name)}
+        </div>
+      )}
 
       {saveState === 'conflict' && (
         <div role="alert" className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-2 bg-(--status-warning-subtle) text-(--status-warning-text) t-ui-md">

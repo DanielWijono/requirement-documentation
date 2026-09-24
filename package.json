@@ -4,6 +4,7 @@
   "type": "module",
   "workspaces": [
     "packages/quire-shared",
+    "packages/quire-editor",
     "quire-api",
     "quire-web"
   ],
@@ -12,8 +13,8 @@
     "services": "docker compose up -d postgres postgres-test mailpit",
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm run lint --workspaces",
-    "test": "npm run test --workspaces",
-    "coverage": "npm run coverage --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "coverage": "npm run coverage --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces"
   },

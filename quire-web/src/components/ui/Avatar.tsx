@@ -1,16 +1,7 @@
 import clsx from 'clsx'
 import type { User } from '../../types'
+import { avatarColor } from '../../lib/avatarColor'
 
-const PALETTE = [
-  '#0E6B70',
-  '#5B4FC4',
-  '#B7791F',
-  '#2E7A4E',
-  '#B83A2A',
-  '#56606E',
-  '#6B4FA0',
-  '#3A6EA5',
-]
 
 const SIZES = {
   16: 'w-4 h-4 text-[8px]',
@@ -31,7 +22,7 @@ export function Avatar({
   presence?: boolean
   className?: string
 }) {
-  const bg = PALETTE[user.colorSeed % PALETTE.length]
+  const bg = avatarColor(user.colorSeed)
   return (
     <span className={clsx('relative inline-flex shrink-0', className)}>
       <span

@@ -9,12 +9,16 @@ const { db, sql } = createDb(env.DATABASE_URL)
 const app = createApp({ db, env, mailer: smtpMailer(env) })
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-  console.log(`quire-api listening on http://localhost:${info.port}`)
+  console.log(`quire-api listening on http://localhost:${info.port} (co-editing on /collab)`)
 })
+app.collab.attach(server as import('node:http').Server)
 
-function shutdown() {
+async function shutdown() {
+  // Write open co-edited drafts back before the database goes away.
+  await app.collab.destroy()
   server.close()
-  void sql.end({ timeout: 5 }).then(() => process.exit(0))
+  await sql.end({ timeout: 5 })
+  process.exit(0)
 }
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+process.on('SIGINT', () => void shutdown())
+process.on('SIGTERM', () => void shutdown())

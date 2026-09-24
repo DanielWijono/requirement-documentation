@@ -1,0 +1,1 @@
+ALTER TABLE "page_drafts" ADD COLUMN "ystate" "bytea";

@@ -21,6 +21,11 @@ const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull(
 const updatedAt = () => timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 
 const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' })
+const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
+  dataType: () => 'bytea',
+  toDriver: (value) => Buffer.from(value),
+  fromDriver: (value) => new Uint8Array(value),
+})
 
 // ---------------------------------------------------------------------------
 // Accounts. `user`, `session`, `account` and `verification` follow Better Auth's schema.
@@ -232,6 +237,8 @@ export const pageDrafts = pgTable('page_drafts', {
   html: text('html').notNull(),
   /** Bumped on every draft save; clients send it back in If-Match. */
   rev: integer('rev').notNull().default(1),
+  /** The collaborative (Yjs) document behind `html`, while people co-edit; null after a plain save. */
+  ystate: bytea('ystate'),
   updatedById: text('updated_by_id')
     .notNull()
     .references(() => user.id),
