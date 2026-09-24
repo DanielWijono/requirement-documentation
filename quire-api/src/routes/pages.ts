@@ -1,6 +1,7 @@
 import {
   collaboratorsSchema,
   draftSaveSchema,
+  labelsSchema,
   pageCopySchema,
   pageCreateSchema,
   pageMoveSchema,
@@ -23,7 +24,8 @@ import { countWords, htmlToText } from '../lib/html.ts'
 import { sanitizeBody } from '../lib/sanitize.ts'
 import { requireUser, sessionSubject, sessionUser } from '../middleware/session.ts'
 import { pageForSubject, spaceForSubject, type PageContext } from '../services/access.ts'
-import { principalsWithNames, positionAt, subtreeIds, toPageDto } from '../services/pages.ts'
+import { pageLabels, principalsWithNames, positionAt, subtreeIds, toPageDto } from '../services/pages.ts'
+import { pageComments } from './comments.ts'
 import { toUserDto, userColumns } from '../services/users.ts'
 
 type C = Context<AppEnv>
@@ -378,6 +380,31 @@ export const pages = new Hono<AppEnv>()
     return c.json(await collaborators(db, ctx.page.id))
   })
 
+  /** Replace the page's labels. */
+  .put('/:id/labels', requireUser, async (c) => {
+    const { db } = c.var
+    const { ctx } = await load(c)
+    need(ctx.access.edit, 'You cannot edit this page')
+    const labels = [...new Set((await readJson(c.req, labelsSchema)).labels)]
+    await db.transaction(async (tx) => {
+      await tx.delete(t.pageLabels).where(eq(t.pageLabels.pageId, ctx.page.id))
+      if (labels.length) await tx.insert(t.pageLabels).values(labels.map((name) => ({ pageId: ctx.page.id, name })))
+    })
+    return c.json(await pageLabels(db, ctx.page.id))
+  })
+
+  /** Record that the person opened the page, for their recent list. */
+  .post('/:id/views', requireUser, async (c) => {
+    const { ctx } = await load(c)
+    const viewedAt = new Date()
+    await c.var.db
+      .insert(t.recentViews)
+      .values({ userId: sessionUser(c).id, pageId: ctx.page.id, viewedAt })
+      .onConflictDoUpdate({ target: [t.recentViews.userId, t.recentViews.pageId], set: { viewedAt } })
+    return c.body(null, 204)
+  })
+
+  .route('/:id/comments', pageComments)
   .route('/:id/star', toggle(t.pageStars))
   .route('/:id/watch', toggle(t.pageWatches))
 

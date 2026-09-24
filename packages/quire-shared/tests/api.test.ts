@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  commentCreateSchema,
   groupInputSchema,
+  labelsSchema,
   initialsOf,
   inviteCreateSchema,
   pageCreateSchema,
@@ -52,5 +54,17 @@ describe('space and page inputs', () => {
     expect(pageCreateSchema.parse({ spaceKey: 'ENG' })).toEqual({ spaceKey: 'ENG', parentId: null, title: 'Untitled', icon: null, html: '<p></p>', isBlogPost: false })
     expect(pageMoveSchema.parse({ parentId: null })).toEqual({ parentId: null, index: Number.MAX_SAFE_INTEGER })
     expect(publishSchema.parse({})).toEqual({ comment: '' })
+  })
+})
+
+describe('comment and label inputs', () => {
+  it('normalizes labels', () => {
+    expect(labelsSchema.parse({ labels: [' On Call ', 'API'] })).toEqual({ labels: ['on-call', 'api'] })
+    expect(labelsSchema.safeParse({ labels: ['-lead'] }).success).toBe(false)
+  })
+
+  it('trims comments and defaults the anchor', () => {
+    expect(commentCreateSchema.parse({ body: ' Hi ' })).toEqual({ body: 'Hi', anchorText: null })
+    expect(commentCreateSchema.safeParse({ body: ' ' }).success).toBe(false)
   })
 })

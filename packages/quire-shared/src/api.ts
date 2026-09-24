@@ -236,6 +236,7 @@ export interface PageDto {
   wordCount: number
   widthMode: (typeof WIDTH_MODES)[number]
   isBlogPost: boolean
+  labels: string[]
   restricted: boolean
   starred: boolean
   watched: boolean
@@ -267,4 +268,62 @@ export interface PageRestrictionsDto {
   edit: PrincipalDto[]
   /** View lists on ancestors, nearest first. Shown read-only; they also limit this page. */
   inherited: { pageId: string; title: string; view: PrincipalDto[] }[]
+}
+
+// ---------------------------------------------------------------------------
+// Comments, labels and home
+
+const commentBody = z.string().trim().min(1).max(10_000)
+export const commentCreateSchema = z.object({ body: commentBody, anchorText: z.string().trim().min(1).max(500).nullable().default(null) })
+export type CommentCreate = z.input<typeof commentCreateSchema>
+export const commentBodySchema = z.object({ body: commentBody })
+
+export const LABEL_PATTERN = /^[a-z0-9][a-z0-9_-]{0,49}$/
+const labelName = z
+  .string()
+  .trim()
+  .transform((v) => v.toLowerCase().replace(/\s+/g, '-'))
+  .pipe(z.string().regex(LABEL_PATTERN, 'Labels use letters, digits, - and _ (up to 50)'))
+export const labelsSchema = z.object({ labels: z.array(labelName).max(20) })
+
+export interface CommentDto {
+  id: string
+  pageId: string
+  parentId: string | null
+  authorId: string
+  /** Empty for a deleted comment kept only because it has replies. */
+  body: string
+  anchorText: string | null
+  resolved: boolean
+  edited: boolean
+  deleted: boolean
+  createdAt: string
+  updatedAt: string
+  replies: CommentDto[]
+}
+
+export interface LabelCountDto {
+  name: string
+  /** Pages the person can see that carry the label. */
+  count: number
+}
+
+/** A page in a home list (recent, starred, drafts). */
+export interface PageItemDto {
+  id: string
+  title: string
+  icon: string | null
+  status: PageStatusDto
+  hasDraft: boolean
+  spaceKey: string
+  spaceName: string
+  updatedAt: string
+  updatedById: string
+  /** When the person last opened it (recent list only). */
+  viewedAt: string | null
+}
+
+export interface StarredDto {
+  spaces: SpaceDto[]
+  pages: PageItemDto[]
 }

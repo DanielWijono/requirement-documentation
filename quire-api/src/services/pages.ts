@@ -20,6 +20,11 @@ export async function ancestorsOf(db: Queryable, pageId: string): Promise<{ id: 
   return rows.map((r) => ({ id: r.id, title: r.title }))
 }
 
+export async function pageLabels(db: Queryable, pageId: string): Promise<string[]> {
+  const rows = await db.select({ name: t.pageLabels.name }).from(t.pageLabels).where(eq(t.pageLabels.pageId, pageId)).orderBy(asc(t.pageLabels.name))
+  return rows.map((r) => r.name)
+}
+
 /** Ids of the page and every descendant. */
 export async function subtreeIds(db: Queryable, pageId: string): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
@@ -35,12 +40,13 @@ export async function subtreeIds(db: Queryable, pageId: string): Promise<string[
 
 export async function toPageDto(db: Queryable, subject: Subject, ctx: PageContext): Promise<PageDto> {
   const { page, access } = ctx
-  const [ancestors, draft, restriction, star, watch] = await Promise.all([
+  const [ancestors, draft, restriction, star, watch, labels] = await Promise.all([
     ancestorsOf(db, page.id),
     access.edit ? db.select().from(t.pageDrafts).where(eq(t.pageDrafts.pageId, page.id)) : [],
     db.select({ pageId: t.pageRestrictions.pageId }).from(t.pageRestrictions).where(eq(t.pageRestrictions.pageId, page.id)).limit(1),
     db.select().from(t.pageStars).where(and(eq(t.pageStars.pageId, page.id), eq(t.pageStars.userId, subject.userId))),
     db.select().from(t.pageWatches).where(and(eq(t.pageWatches.pageId, page.id), eq(t.pageWatches.userId, subject.userId))),
+    pageLabels(db, page.id),
   ])
   const d = draft[0]
   return {
@@ -62,6 +68,7 @@ export async function toPageDto(db: Queryable, subject: Subject, ctx: PageContex
     wordCount: page.wordCount,
     widthMode: page.widthMode,
     isBlogPost: page.isBlogPost,
+    labels,
     restricted: restriction.length > 0,
     starred: star.length > 0,
     watched: watch.length > 0,

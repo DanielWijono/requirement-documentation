@@ -7,7 +7,9 @@ import { ApiError } from './lib/errors.ts'
 import type { Mailer } from './mail/mailer.ts'
 import { originCheck } from './middleware/origin.ts'
 import { loadSession } from './middleware/session.ts'
+import { comments } from './routes/comments.ts'
 import { groups } from './routes/groups.ts'
+import { home, labels } from './routes/home.ts'
 import { health } from './routes/health.ts'
 import { invites } from './routes/invites.ts'
 import { pages } from './routes/pages.ts'
@@ -46,11 +48,14 @@ export function createApp(deps: AppDeps) {
   app.use(originCheck)
   app.use(loadSession)
   app.route('/me', me)
+  app.route('/me', home)
   app.route('/users', users)
   app.route('/groups', groups)
   app.route('/invites', invites)
   app.route('/spaces', spaces)
   app.route('/pages', pages)
+  app.route('/comments', comments)
+  app.route('/labels', labels)
 
   app.notFound((c) => c.json<ApiErrorBody>({ code: 'not_found', message: 'Not found' }, 404))
   app.onError((err, c) => {
