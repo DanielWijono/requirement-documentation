@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { SPACE_PERMISSIONS, type SpacePermission } from './types.ts'
 
 /** Every API error body: a stable machine code plus a message safe to show to people. */
-export const apiErrorSchema = z.object({ code: z.string(), message: z.string() })
+export const apiErrorSchema = z.object({ code: z.string(), message: z.string(), current: z.unknown().optional() })
 export type ApiErrorBody = z.infer<typeof apiErrorSchema>
 
 export const healthSchema = z.object({ ok: z.boolean(), db: z.enum(['up', 'down']) })
@@ -143,4 +143,128 @@ export interface SpaceGrantDto {
   /** The person's or group's display name. */
   name: string
   perms: SpacePermission[]
+}
+
+// ---------------------------------------------------------------------------
+// Pages
+
+export const WIDTH_MODES = ['reading', 'wide', 'full'] as const
+export type PageStatusDto = 'draft' | 'published' | 'archived' | 'deleted'
+
+const pageTitle = z.string().trim().min(1).max(255)
+const pageIcon = z.string().trim().min(1).max(16).nullable()
+/** Page bodies are HTML from the editor; the API sanitizes them before storing. */
+const pageHtml = z.string().max(2_000_000)
+const principalRef = z.object({ type: z.enum(['user', 'group']), id: z.string().min(1) })
+
+export const pageCreateSchema = z.object({
+  spaceKey: z.string().min(1),
+  parentId: z.string().min(1).nullable().default(null),
+  title: pageTitle.default('Untitled'),
+  icon: pageIcon.default(null),
+  html: pageHtml.default('<p></p>'),
+  isBlogPost: z.boolean().default(false),
+})
+export type PageCreate = z.input<typeof pageCreateSchema>
+
+export const pagePatchSchema = z
+  .object({ title: pageTitle.optional(), icon: pageIcon.optional(), widthMode: z.enum(WIDTH_MODES).optional() })
+  .refine((v) => v.title !== undefined || v.icon !== undefined || v.widthMode !== undefined, 'Nothing to update')
+export type PagePatch = z.infer<typeof pagePatchSchema>
+
+export const draftSaveSchema = z.object({ html: pageHtml })
+export const publishSchema = z.object({ comment: z.string().trim().max(500).default('') })
+export type PublishInput = z.input<typeof publishSchema>
+
+/** `index` is the position among the new siblings (0 = first); past the end means last. */
+export const pageMoveSchema = z.object({ parentId: z.string().min(1).nullable(), index: z.number().int().min(0).default(Number.MAX_SAFE_INTEGER) })
+export type PageMove = z.input<typeof pageMoveSchema>
+
+export const pageCopySchema = z.object({ title: pageTitle.optional() })
+export const pageRestrictionsSchema = z.object({ view: z.array(principalRef).max(500), edit: z.array(principalRef).max(500) })
+export type PageRestrictionsInput = z.infer<typeof pageRestrictionsSchema>
+export const collaboratorsSchema = z.object({ userIds: z.array(z.string().min(1)).max(100) })
+
+export interface PageAccessDto {
+  view: boolean
+  edit: boolean
+  comment: boolean
+  addChild: boolean
+  delete: boolean
+  restrict: boolean
+}
+
+/** One row of the page tree: a single level, loaded lazily. */
+export interface PageNodeDto {
+  id: string
+  parentId: string | null
+  title: string
+  icon: string | null
+  status: PageStatusDto
+  /** Published with unpublished changes in a draft. */
+  hasDraft: boolean
+  /** Has its own view or edit restriction. */
+  restricted: boolean
+  hasChildren: boolean
+}
+
+export interface DraftDto {
+  html: string
+  rev: number
+  updatedAt: string
+  updatedById: string
+}
+
+export interface PageDto {
+  id: string
+  spaceId: string
+  spaceKey: string
+  parentId: string | null
+  ancestors: { id: string; title: string }[]
+  title: string
+  icon: string | null
+  status: PageStatusDto
+  ownerId: string
+  updatedById: string
+  createdAt: string
+  updatedAt: string
+  /** Null until the first publish. */
+  publishedHtml: string | null
+  publishedVersion: number
+  /** Send back in If-Match when publishing or restoring a version. */
+  lockVersion: number
+  wordCount: number
+  widthMode: (typeof WIDTH_MODES)[number]
+  isBlogPost: boolean
+  restricted: boolean
+  starred: boolean
+  watched: boolean
+  /** Only for people who can edit. */
+  draft: DraftDto | null
+  myAccess: PageAccessDto
+}
+
+export interface PageVersionDto {
+  version: number
+  title: string
+  authorId: string
+  comment: string
+  createdAt: string
+}
+
+export interface PageVersionDetailDto extends PageVersionDto {
+  html: string | null
+}
+
+export interface PrincipalDto {
+  type: 'user' | 'group'
+  id: string
+  name: string
+}
+
+export interface PageRestrictionsDto {
+  view: PrincipalDto[]
+  edit: PrincipalDto[]
+  /** View lists on ancestors, nearest first. Shown read-only; they also limit this page. */
+  inherited: { pageId: string; title: string; view: PrincipalDto[] }[]
 }

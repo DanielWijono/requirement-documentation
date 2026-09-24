@@ -103,7 +103,8 @@ export function evaluatePageAccess(subject: Subject, space: SpaceFacts, page: Pa
   const isOwner = page.ownerId === subject.userId
   if (page.status === 'draft' && !isOwner && !page.collaboratorIds.includes(subject.userId)) return NO_PAGE_ACCESS
   const trashed = page.status === 'archived' || page.status === 'deleted'
-  if (trashed && !has('Admin') && !has('Delete')) return NO_PAGE_ACCESS
+  // Whoever may delete a page may see it in the trash, so they can restore it.
+  if (trashed && !has('Delete') && !isOwner) return NO_PAGE_ACCESS
   if (!page.viewLists.every((list) => list.some((p) => isPrincipal(subject, p)))) return NO_PAGE_ACCESS
 
   // Trashed pages and pages in archived spaces are read-only until restored.

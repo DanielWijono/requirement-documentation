@@ -5,12 +5,12 @@ Update the checkboxes as work lands, and add new findings to the right phase ins
 
 - **Last updated:** 2026-09-23
 - **Status:** Frontend prototype on mock seed data, with changes saved to `localStorage`.
-- **Current phase:** Phase 6e (pages).
+- **Current phase:** Phase 6f (comments, labels, home).
 
 ## Next up
 
 1. **Docker can't pull images on this machine yet** (every registry request times out while the VPN is up). Until it can, API tests run against a throwaway Homebrew Postgres on port 5433; see "Local services" below.
-2. Phase 6e: page tree, CRUD, drafts and publish with 409 conflicts, versions, move/copy, archive/delete/restore, restrictions, collaborators, server-side HTML sanitizing. Use `pageForSubject` for single pages and `visiblePagesSql` for lists.
+2. Phase 6f: comments (one reply level, resolve/reopen, soft delete), labels (`PUT /pages/:id/labels`, `GET /labels?q`), recent views, and `/me/recent|starred|drafts`, all filtered with `visiblePagesSql`.
 
 ## Git rules
 
@@ -189,6 +189,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 4. **Comment:** view + `Comment`. **Create child:** `Add` + edit on the parent. **Delete/archive:** `Delete` or page owner. **Change restrictions:** edit. **Change the permissions matrix:** `Admin`.
 5. A page in a space you can't view returns 404; a restricted page returns 403 (the existing `Forbidden.tsx`). List endpoints filter in SQL, never in JS after pagination.
 6. Decided in 6d: view lists bind everyone, site admins included, and drafts stay private to their author and collaborators. Trashed pages and pages in archived spaces are read-only; archived spaces accept no new pages. Anyone signed in may create a space. The API's `visiblePagesSql` / `visibleSpacesSql` are tested to agree with the pure evaluator on a shared fixture.
+7. Decided in 6e: a page's owner can see their own page in the trash (so they can undo a delete); moves stay within a space; copy duplicates one page as a new draft next to the original; restoring a page whose parent is still in the trash puts it at the top of the space; whoever sets a non-empty restriction list is always kept on it; bodies are sanitized with an allowlist of the editor's schema before they are stored.
 
 ### Database outline
 - Auth: Better Auth `user` (+ `color_seed`, `site_role`, `deactivated_at`), `session`, `account`, `verification`; `invites`; `groups`, `group_members`.
@@ -204,7 +205,7 @@ Decided 2026-09-23. Quire is for multiple people, so it gets a self-hosted backe
 - [x] **6b schema:** Drizzle schema and first migration; `db:seed` from `mockData` (refuses to run in production). Tests: migration applies, seed is idempotent, constraints hold.
 - [x] **6c auth:** Better Auth (httpOnly SameSite=Lax cookies), invites, password reset through nodemailer, `bootstrap-admin` CLI, `/me`, users and groups admin, rate limits, Origin check on mutations. Tests: invite → accept → login; reset email read through the Mailpit API.
 - [x] **6d authz + spaces:** `evaluateAccess`, authz middleware, spaces CRUD, permissions matrix, stars/watches. Tests: table-driven evaluator; route × role matrix.
-- [ ] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
+- [x] **6e pages:** tree (lazy, one level), CRUD, move/copy, archive/delete/restore, restrictions, collaborators, drafts, publish and versions with 409 on conflict. Tests: concurrent saves (200 + 409), cycle rejection, subtree state.
 - [ ] **6f comments + home:** comments, labels, recent views, `/me/recent|starred|drafts`.
 - [ ] **6g search:** full-text search with snippets and filters, trigram palette endpoint. Tests: ranking, filters, no restricted results.
 - [ ] **6h web foundation:** `apiClient`, QueryClient, MSW fake + contract suite, providers in `renderApp`, `useSession` replacing `currentUser` (10 files), Login / Accept invite / Forgot and Reset password routes, route guard, Vite proxy `/api` → `:3000`.
@@ -239,6 +240,7 @@ Run the gates above in every workspace (`packages/quire-shared`, `quire-api`, `q
 
 ## Changelog
 
+- **2026-09-24:** Phase 6e done: lazy page tree and trash listing, page CRUD, drafts with If-Match `rev`, publish and version restore with If-Match `lock_version` (428 without it, 409 with the current page on a conflict), versions, move (index-based fractional positions, cycle and cross-space checks), copy, subtree archive/delete/restore, restrictions with inherited view lists shown read-only, draft collaborators, page stars and watches, server-side HTML sanitizing. Tests: shared 54, api 125 (two concurrent publishes give 200 + 409).
 - **2026-09-24:** Phase 6d done: pure `evaluateSpaceAccess` / `evaluatePageAccess` in `quire-shared` (31 table cases), API access service (ancestor-chain recursive CTE, SQL list filters checked against the evaluator), spaces CRUD, archive/unarchive, permissions matrix (`GET|PUT /spaces/:key/permissions`), stars and watches, 404 for hidden spaces. Tests: shared 50, api 99 including a route × role matrix over seven roles.
 - **2026-09-23:** Phase 6c done: Better Auth (email + password, sign-up disabled, httpOnly SameSite=Lax cookies, rate limits on sign-in and reset, deactivated users blocked), invites (hashed single-use tokens, 7-day expiry, email via SMTP), password reset email, `bootstrap-admin` CLI, `/me`, users admin (roles, deactivation ends sessions), groups CRUD with a protected system group, Origin check on writes. Seeded people sign in with `quire-dev-password`. Tests: api 71 (invite and reset flows read the real Mailpit inbox), shared 19.
 - **2026-09-23:** Phase 6b done: Drizzle schema (21 tables) in three migrations (pg_trgm, schema, integrity triggers for reply depth, tree cycles and cross-space parents); `db:migrate` and `db:seed` (idempotent, refuses production); seed data and domain types moved to `@quire/shared` (the web app re-exports them unchanged). Tests: api 43, all passing.

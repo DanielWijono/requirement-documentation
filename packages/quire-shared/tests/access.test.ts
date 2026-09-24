@@ -92,6 +92,7 @@ describe('page access', () => {
     ['archived hidden without Delete', member, space, page({ status: 'archived' }), NONE],
     ['archived is read-only for Delete holders', deleter, space, page({ status: 'archived' }), { ...READ, delete: true }],
     ['deleted is read-only for space admins', spaceAdmin, space, page({ status: 'deleted' }), { ...READ, delete: true }],
+    ['the page owner sees their own trashed page', member, space, page({ status: 'archived', ownerId: 'u.member' }), { ...READ, delete: true }],
     ['own view list admits', member, space, page({ viewLists: [[byMember]] }), MEMBER],
     ['own view list excludes', designer, space, page({ viewLists: [[byMember]] }), NONE],
     ['group on the view list', designer, space, page({ viewLists: [[byDesign]] }), MEMBER],

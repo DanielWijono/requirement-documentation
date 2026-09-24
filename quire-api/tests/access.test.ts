@@ -46,6 +46,7 @@ async function fixture() {
   await page('pg.draft', { status: 'draft' })
   await page('pg.shared-draft', { status: 'draft' })
   await page('pg.archived', { status: 'archived' })
+  await page('pg.my-archived', { status: 'archived', ownerId: member.id })
   await page('pg.locked')
   await makePage(db(), { id: 'pg.closed', spaceId: closed.id, ownerId: owner.id, status: 'published' })
   await db()
@@ -115,8 +116,8 @@ describe('SQL filters agree with evaluateAccess', () => {
     const want = await expected(subject)
     expect(await actual(subject)).toEqual(want)
     // Spot-check the fixture exercises what it claims to.
-    if (who === 'member') expect(want.pages).toEqual(['pg.child', 'pg.grandchild', 'pg.locked', 'pg.plain', 'pg.root', 'pg.shared-draft'])
+    if (who === 'member') expect(want.pages).toEqual(['pg.child', 'pg.grandchild', 'pg.locked', 'pg.my-archived', 'pg.plain', 'pg.root', 'pg.shared-draft'])
     if (who === 'designer') expect(want.pages).toEqual(['pg.closed', 'pg.locked', 'pg.plain', 'pg.root'])
-    if (who === 'cleaner') expect(want.pages).toEqual(['pg.archived', 'pg.locked', 'pg.plain'])
+    if (who === 'cleaner') expect(want.pages).toEqual(['pg.archived', 'pg.locked', 'pg.my-archived', 'pg.plain'])
   })
 })

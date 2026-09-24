@@ -154,7 +154,8 @@ export function visiblePagesSql(subject: Subject): SQL {
     ${hasSpacePermSql(subject, sql`${t.pages.spaceId}`, ['View'])}
     and (${t.pages.status} <> 'draft' or ${t.pages.ownerId} = ${subject.userId}
       or exists (select 1 from page_collaborators pc where pc.page_id = ${pageId} and pc.user_id = ${subject.userId}))
-    and (${t.pages.status} not in ('archived', 'deleted') or ${hasSpacePermSql(subject, sql`${t.pages.spaceId}`, ['Delete'])})
+    and (${t.pages.status} not in ('archived', 'deleted') or ${t.pages.ownerId} = ${subject.userId}
+      or ${hasSpacePermSql(subject, sql`${t.pages.spaceId}`, ['Delete'])})
     and not exists (
       with recursive chain(id, parent_id) as (
         select ${pageId}, ${t.pages.parentId}
