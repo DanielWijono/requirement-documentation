@@ -6,10 +6,12 @@ import type { PageTreeNode } from '../../types'
 import { Menu } from '../ui/Menu'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { usePageActions } from '../page/usePageActions'
-import { useContentStore } from '../../store/contentStore'
+import { useCreatePage } from '../../queries/pages'
+import { useUIStore } from '../../store/uiStore'
 
 export function PageTreeItem({
   node,
+  parentId,
   spaceId,
   depth,
   activePageId,
@@ -18,6 +20,7 @@ export function PageTreeItem({
   setSize,
 }: {
   node: PageTreeNode
+  parentId: string | null
   spaceId: string
   depth: number
   activePageId?: string
@@ -28,8 +31,9 @@ export function PageTreeItem({
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(ancestorIds.has(node.id) || depth === 0)
   const [createOpen, setCreateOpen] = useState(false)
-  const actions = usePageActions(node.id)
-  const createPage = useContentStore((s) => s.createPage)
+  const actions = usePageActions({ id: node.id, spaceId, parentId, title: node.title })
+  const createPage = useCreatePage()
+  const pushToast = useUIStore((s) => s.pushToast)
   const hasChildren = node.children.length > 0
   const isActive = node.id === activePageId
   const isDraft = node.state === 'draft'
@@ -86,8 +90,13 @@ export function PageTreeItem({
             onClick={(e) => {
               // Quick path (design.md §8.4): a blank child draft, no modal.
               e.stopPropagation()
-              const id = createPage(spaceId, node.id)
-              navigate(`/spaces/${spaceId}/pages/${id}/edit`)
+              createPage.mutate(
+                { spaceKey: spaceId, parentId: node.id },
+                {
+                  onSuccess: (page) => navigate(`/spaces/${page.spaceId}/pages/${page.id}/edit`),
+                  onError: (err) => pushToast({ message: `Couldn’t create a page: ${err.message}`, tone: 'danger' }),
+                },
+              )
             }}
             className="w-5 h-5 flex items-center justify-center rounded-(--radius-sm) hover:bg-(--color-bg-hover)"
             aria-label="Add child page"
@@ -116,6 +125,7 @@ export function PageTreeItem({
               posInSet={i + 1}
               setSize={node.children.length}
               node={child}
+              parentId={node.id}
               spaceId={spaceId}
               depth={depth + 1}
               activePageId={activePageId}

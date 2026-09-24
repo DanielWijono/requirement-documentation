@@ -3,20 +3,21 @@ import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { Search, SlidersHorizontal } from 'lucide-react'
-import { useContentStore, ancestorChainIn, isVisiblePage } from '../store/contentStore'
+import { relativeTime, type SearchFilter, type SnippetPart } from '@quire/shared'
+import { useDebounced } from '../hooks/useDebounced'
+import { useLabels } from '../queries/home'
+import { useSearch } from '../queries/search'
 import { useUserList, useUserLookup } from '../queries/users'
-import { ageInDays } from '../lib/relativeTime'
-import type { Page } from '../types'
 import { useSpaceList } from '../queries/spaces'
 
 type Sort = 'relevance' | 'modified'
 type TypeFilter = 'page' | 'blog'
 type ModifiedFilter = 'today' | 'week' | 'month'
 
-const MODIFIED_OPTIONS: { id: ModifiedFilter; label: string; maxDays: number }[] = [
-  { id: 'today', label: 'Today', maxDays: 0 },
-  { id: 'week', label: 'Past 7 days', maxDays: 7 },
-  { id: 'month', label: 'Past 30 days', maxDays: 30 },
+const MODIFIED_OPTIONS: { id: ModifiedFilter; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'Past 7 days' },
+  { id: 'month', label: 'Past 30 days' },
 ]
 
 interface Filters {
@@ -42,41 +43,21 @@ function highlight(text: string, query: string) {
   )
 }
 
-/** What readers see: the published body when there is one. */
-function bodyText(p: Page) {
-  return (p.publishedHtml ?? p.contentHtml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-/** Up to 160 characters of body text around the first match. */
-function snippet(text: string, query: string) {
-  const idx = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1
-  if (idx < 0) return text.slice(0, 160)
-  const start = Math.max(0, idx - 60)
-  return `${start > 0 ? '…' : ''}${text.slice(start, start + 160)}${start + 160 < text.length ? '…' : ''}`
-}
-
-function relevance(p: Page, q: string) {
-  if (!q) return 0
-  const title = p.title.toLowerCase()
-  const body = bodyText(p).toLowerCase()
-  let score = 0
-  if (title === q) score += 20
-  else if (title.startsWith(q)) score += 12
-  else if (title.includes(q)) score += 8
-  score += Math.min(body.split(q).length - 1, 5)
-  return score
-}
-
-function applyFilters(pages: Page[], q: string, f: Filters) {
-  return pages.filter((p) => {
-    if (q && !p.title.toLowerCase().includes(q) && !bodyText(p).toLowerCase().includes(q)) return false
-    if (f.space && p.spaceId !== f.space) return false
-    if (f.type && (f.type === 'blog') !== Boolean(p.isBlogPost)) return false
-    if (f.contributor && p.updatedById !== f.contributor && p.ownerId !== f.contributor) return false
-    if (f.modified && ageInDays(p.updatedRelative) > MODIFIED_OPTIONS.find((o) => o.id === f.modified)!.maxDays) return false
-    if (f.label && !p.labels.some((l) => l.name === f.label)) return false
-    return true
-  })
+/** The server marks the matched words; snippets are plain text, never HTML. */
+function Snippet({ parts }: { parts: SnippetPart[] }) {
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.match ? (
+          <mark key={i} className="bg-(--color-highlight) text-inherit rounded-sm">
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
+  )
 }
 
 export function SearchResults() {
@@ -85,24 +66,29 @@ export function SearchResults() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const spaces = useSpaceList()
-  const pages = useContentStore((s) => s.pages)
-  const pageTree = useContentStore((s) => s.pageTree)
+  const labelsQuery = useLabels()
 
   const query = params.get('q') ?? ''
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, contributor: params.get('contributor'), label: params.get('label') })
   const [sort, setSort] = useState<Sort>('relevance')
   const [filtersOpen, setFiltersOpen] = useState(false)
-
-  const visiblePages = useMemo(() => Object.values(pages).filter(isVisiblePage), [pages])
-  const labels = useMemo(() => [...new Set(visiblePages.flatMap((p) => p.labels.map((l) => l.name)))].sort(), [visiblePages])
-  const q = query.trim().toLowerCase()
-
-  const results = useMemo(() => {
-    const list = applyFilters(visiblePages, q, filters)
-    return [...list].sort((a, b) =>
-      sort === 'modified' || !q ? ageInDays(a.updatedRelative) - ageInDays(b.updatedRelative) : relevance(b, q) - relevance(a, q),
-    )
-  }, [visiblePages, q, filters, sort])
+  const q = useDebounced(query.trim(), 200)
+  const search = useSearch({
+    q,
+    sort,
+    space: filters.space ?? undefined,
+    type: filters.type ?? undefined,
+    contributor: filters.contributor ?? undefined,
+    modified: filters.modified ?? undefined,
+    label: filters.label ?? undefined,
+    limit: 50,
+  })
+  const results = search.data?.results ?? []
+  const total = search.data?.total ?? 0
+  const labels = useMemo(() => {
+    const names = (labelsQuery.data ?? []).map((l) => l.name)
+    return filters.label && !names.includes(filters.label) ? [...names, filters.label].sort() : names.sort()
+  }, [labelsQuery.data, filters.label])
 
   const filterNames: Record<keyof Filters, (v: string) => string> = {
     space: (v) => spaces.find((s) => s.id === v)?.name ?? v,
@@ -115,13 +101,11 @@ export function SearchResults() {
   // The most restrictive filter is the one whose removal brings back the most results.
   const mostRestrictive = useMemo(() => {
     let best: { key: keyof Filters; count: number } | null = null
-    for (const key of Object.keys(filters) as (keyof Filters)[]) {
-      if (!filters[key]) continue
-      const count = applyFilters(visiblePages, q, { ...filters, [key]: null }).length
+    for (const [key, count] of Object.entries(search.data?.relaxed ?? {}) as [SearchFilter, number][]) {
       if (!best || count > best.count) best = { key, count }
     }
     return best
-  }, [filters, visiblePages, q])
+  }, [search.data])
 
   function set<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((f) => ({ ...f, [key]: value }))
@@ -198,7 +182,7 @@ export function SearchResults() {
           </div>
           <div className="flex items-center justify-between mb-4">
             <p className="t-ui-sm text-(--color-text-secondary)" aria-live="polite">
-              {results.length} result{results.length === 1 ? '' : 's'}
+              {search.isPending ? 'Searching…' : `${total} result${total === 1 ? '' : 's'}`}
             </p>
             <div className="flex items-center gap-1">
               {(['relevance', 'modified'] as Sort[]).map((s) => (
@@ -217,7 +201,14 @@ export function SearchResults() {
             </div>
           </div>
 
-          {results.length === 0 ? (
+          {search.isError ? (
+            <div role="alert" className="text-center py-16">
+              <p className="t-ui-md text-(--status-danger-text) mb-2">Search isn’t working right now: {search.error.message}</p>
+              <button className="text-(--color-text-link) underline t-ui-md" onClick={() => void search.refetch()}>
+                Try again
+              </button>
+            </div>
+          ) : search.isPending ? null : results.length === 0 ? (
             <div className="text-center py-16">
               <p className="t-ui-md text-(--color-text-secondary) mb-1">{query ? <>No results for &ldquo;{query}&rdquo;.</> : 'No results.'}</p>
               {mostRestrictive && (
@@ -233,20 +224,19 @@ export function SearchResults() {
           ) : (
             <ul className="flex flex-col gap-5">
               {results.map((p) => {
-                const space = spaces.find((s) => s.id === p.spaceId)
-                const chain = ancestorChainIn(pageTree[p.spaceId] ?? [], p.id).slice(0, -1)
                 const modifier = userById(p.updatedById)
                 return (
                   <li key={p.id}>
                     <button onClick={() => navigate(`/spaces/${p.spaceId}/pages/${p.id}`)} className="text-left w-full">
                       <span className="t-ui-md-medium text-(--color-text-link) block">{highlight(p.title, query.trim())}</span>
-                      <span className="t-ui-md text-(--color-text-secondary) line-clamp-2 block">{highlight(snippet(bodyText(p), query.trim()), query.trim())}</span>
+                      <span className="t-ui-md text-(--color-text-secondary) line-clamp-2 block">
+                        <Snippet parts={p.snippet} />
+                      </span>
                     </button>
                     <p className="t-ui-sm text-(--color-text-secondary) mt-0.5">
-                      {space?.name}
-                      {chain.length > 0 && ` / ${chain.map((c) => c.title).join(' / ')}`}
+                      {p.spaceName}
                       {' · '}
-                      {modifier.name} · {p.updatedRelative}
+                      {modifier.name} · {relativeTime(p.updatedAt)}
                     </p>
                   </li>
                 )

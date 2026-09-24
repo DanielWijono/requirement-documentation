@@ -7,7 +7,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { CounterBadge } from '../ui/Lozenge'
 import { useUIStore } from '../../store/uiStore'
 import { useCurrentUser, useSignOut } from '../../hooks/useSession'
-import { isVisiblePage, useContentStore, useDerived } from '../../store/contentStore'
+import { useRecentPages, useStarred } from '../../queries/home'
 import { ShortcutsModal } from './ShortcutsModal'
 import { useEffect, useState } from 'react'
 import { useSpaceList } from '../../queries/spaces'
@@ -25,8 +25,6 @@ export function TopBar() {
   const readingFont = useUIStore((s) => s.readingFont)
   const setReadingFont = useUIStore((s) => s.setReadingFont)
   const openCreatePage = useUIStore((s) => s.openCreatePage)
-  const pushToast = useUIStore((s) => s.pushToast)
-  const resetToSeed = useContentStore((s) => s.resetToSeed)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => {
@@ -40,14 +38,8 @@ export function TopBar() {
   }, [])
   const spaces = useSpaceList()
   // Only what the menus show, so autosaves and unrelated edits don't re-render the top bar.
-  const starredPages = useDerived((s) =>
-    Object.values(s.pages)
-      .filter((p) => p.starred && isVisiblePage(p))
-      .map((p) => ({ id: p.id, spaceId: p.spaceId, title: p.title })),
-  )
-  const recentPages = useDerived((s) =>
-    s.recentlyViewed.filter((r) => isVisiblePage(s.pages[r.pageId])).map((r) => ({ ...r, title: s.pages[r.pageId].title })),
-  )
+  const recentPages = (useRecentPages().data ?? []).slice(0, 8)
+  const starredPages = useStarred().data?.pages ?? []
 
   return (
     <header className="h-12 shrink-0 flex items-center gap-1 px-3 border-b border-(--color-border-default) bg-(--color-bg-canvas) z-(--z-nav)">
@@ -89,10 +81,11 @@ export function TopBar() {
               Recent <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Button>
           }
-          items={recentPages.map((r) => ({
-            label: r.title,
-            onSelect: () => navigate(`/spaces/${r.spaceId}/pages/${r.pageId}`),
-          }))}
+          items={
+            recentPages.length
+              ? recentPages.map((r) => ({ label: r.title, onSelect: () => navigate(`/spaces/${r.spaceId}/pages/${r.id}`) }))
+              : [{ label: 'Nothing viewed yet', disabled: true }]
+          }
         />
         <Menu
           trigger={
@@ -167,19 +160,6 @@ export function TopBar() {
             { label: `Reading font: ${readingFont === 'serif' ? 'Serif' : 'Sans'}`, onSelect: () => setReadingFont(readingFont === 'serif' ? 'sans' : 'serif') },
             { label: '', divider: true },
             { label: 'Settings' },
-            ...(import.meta.env.DEV
-              ? [
-                  {
-                    label: 'Reset demo data',
-                    destructive: true,
-                    onSelect: () => {
-                      resetToSeed()
-                      navigate('/')
-                      pushToast({ message: 'Demo data reset', tone: 'info' })
-                    },
-                  },
-                ]
-              : []),
             { label: 'Log out', onSelect: () => signOut.mutate(undefined, { onSettled: () => navigate('/login', { replace: true }) }) },
           ]}
         />

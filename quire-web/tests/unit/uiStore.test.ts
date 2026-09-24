@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useUIStore } from '../../src/store/uiStore'
+import { UI_STORAGE_KEY, useUIStore } from '../../src/store/uiStore'
 
 const ui = () => useUIStore.getState()
 
@@ -41,5 +41,21 @@ describe('uiStore', () => {
     const collapsed = ui().navCollapsed
     ui().toggleNav()
     expect(ui()).toMatchObject({ theme: 'dark', density: 'compact', readingFont: 'sans', navCollapsed: !collapsed })
+  })
+
+  it('saves only UI preferences, not session state, and restores them after a reload', async () => {
+    ui().setTheme('dark')
+    ui().setDensity('compact')
+    ui().setNavWidth(320)
+    ui().openRightPanel('history')
+    ui().pushToast({ message: 'x', tone: 'info', persistent: true })
+    const saved = JSON.parse(localStorage.getItem(UI_STORAGE_KEY)!).state
+    expect(saved).toEqual({ theme: 'dark', density: 'compact', readingFont: 'serif', navWidth: 320 })
+    // A reload: memory starts over, storage keeps what was saved.
+    const stored = localStorage.getItem(UI_STORAGE_KEY)!
+    useUIStore.setState({ theme: 'system', density: 'comfortable', navWidth: 280 })
+    localStorage.setItem(UI_STORAGE_KEY, stored)
+    await useUIStore.persist.rehydrate()
+    expect(ui()).toMatchObject({ theme: 'dark', density: 'compact', navWidth: 320 })
   })
 })

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { MEMBERS_GROUP_ID } from '@quire/shared'
-import { useContentStore } from '../store/contentStore'
+import { useLabels } from '../queries/home'
 import { useUIStore } from '../store/uiStore'
 import { ApiError } from '../lib/apiClient'
 import { useDeleteSpace, useSetSpaceArchived, useSetSpacePermission, useSpacePermissions, useUpdateSpace } from '../queries/spaces'
@@ -217,16 +217,10 @@ function TemplatesTab() {
 
 function LabelsTab({ space }: { space: Space }) {
   const navigate = useNavigate()
-  const pages = useContentStore((s) => s.pages)
-  const counts = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const p of Object.values(pages)) {
-      if (p.spaceId !== space.id || p.state === 'deleted') continue
-      for (const l of p.labels) map.set(l.name, (map.get(l.name) ?? 0) + 1)
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  }, [pages, space.id])
+  const labels = useLabels(space.id)
+  const counts = (labels.data ?? []).map((l) => [l.name, l.count] as const)
 
+  if (labels.isPending) return <p className="t-ui-md text-(--color-text-secondary)">Loading labels…</p>
   if (counts.length === 0) return <p className="t-ui-md text-(--color-text-secondary)">No pages in this space have labels yet.</p>
 
   return (
@@ -279,16 +273,15 @@ function ArchiveTab({ space }: { space: Space }) {
 function DeleteTab({ space }: { space: Space }) {
   const navigate = useNavigate()
   const deleteSpace = useDeleteSpace()
-  const forgetSpacePages = useContentStore((s) => s.deleteSpace)
   const pushToast = useUIStore((s) => s.pushToast)
-  const pageCount = useContentStore((s) => Object.values(s.pages).filter((p) => p.spaceId === space.id).length)
+  const pageCount = space.pageCount
   const [confirmKey, setConfirmKey] = useState('')
 
   return (
     <div className="p-4 rounded-(--radius-md) border border-(--status-danger-bold)">
       <p className="t-ui-md-medium text-(--status-danger-text) mb-1">Delete space</p>
       <p className="t-ui-sm text-(--color-text-secondary) mb-3">
-        This permanently deletes {pageCount} page{pageCount === 1 ? '' : 's'}. Type <strong>{space.key}</strong> to confirm.
+        This permanently deletes {pageCount === 1 ? '1 published page' : `${pageCount} published pages`} and everything else in the space. Type <strong>{space.key}</strong> to confirm.
       </p>
       <div className="flex gap-2">
         <input
@@ -304,8 +297,6 @@ function DeleteTab({ space }: { space: Space }) {
           onClick={() =>
             deleteSpace.mutate(space.id, {
               onSuccess: () => {
-                // Pages still live in the local store until they move to the API (Phase 6j).
-                forgetSpacePages(space.id)
                 navigate('/spaces')
                 pushToast({ message: `Deleted ${space.name}`, tone: 'info' })
               },

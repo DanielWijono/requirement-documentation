@@ -5,7 +5,8 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { useUIStore } from '../../store/uiStore'
-import { ancestorChainIn, useContentStore, usePageTree } from '../../store/contentStore'
+import type { PageRestrictionsDto, PrincipalDto, PrincipalRef } from '@quire/shared'
+import { useRestrictions, useSetRestrictions } from '../../queries/pages'
 import { useUserList, useUserLookup } from '../../queries/users'
 import { useCurrentUser } from '../../hooks/useSession'
 import { pageUrl } from './usePageActions'
@@ -13,51 +14,78 @@ import type { Page } from '../../types'
 
 type Scope = 'anyone-space' | 'anyone-view-some-edit' | 'specific'
 type Role = 'view' | 'edit'
+type Person = { id: string; role: Role }
 
-function initialScope(page: Page): Scope {
-  if (!page.restricted) return 'anyone-space'
-  return page.viewerIds ? 'specific' : 'anyone-view-some-edit'
+function initialScope(r: PageRestrictionsDto): Scope {
+  if (r.view.length) return 'specific'
+  return r.edit.length ? 'anyone-view-some-edit' : 'anyone-space'
 }
 
-/** People listed on the page (other than you), with the role each one has. */
-function initialPeople(page: Page, meId: string): { id: string; role: Role }[] {
-  const ids = new Set([...(page.viewerIds ?? []), ...(page.editorIds ?? [])])
-  ids.delete(meId)
-  return [...ids].map((id) => ({ id, role: !page.editorIds || page.editorIds.includes(id) ? 'edit' : 'view' }))
+/** People on the page's own lists (other than you), with the role each one has. */
+function initialPeople(r: PageRestrictionsDto, meId: string): Person[] {
+  const users = (list: PrincipalDto[]) => list.filter((p) => p.type === 'user' && p.id !== meId).map((p) => p.id)
+  const viewers = users(r.view)
+  const editors = users(r.edit)
+  const ids = [...new Set([...viewers, ...editors])]
+  // With no edit list, everyone who can view can edit.
+  return ids.map((id) => ({ id, role: r.edit.length === 0 || editors.includes(id) ? 'edit' : 'view' }))
 }
 
 export function ShareModal({ page, open, onClose }: { page: Page; open: boolean; onClose: () => void }) {
-  // Mount the body only while open so it always starts from the saved restrictions.
-  return open ? <ShareModalBody page={page} onClose={onClose} /> : null
+  const restrictions = useRestrictions(page.id, open)
+  if (!open) return null
+  if (!restrictions.data) {
+    return (
+      <Modal open onClose={onClose} title="Share">
+        {restrictions.isError ? (
+          <p role="alert" className="t-ui-md text-(--status-danger-text)">
+            Couldn’t load who can see this page: {restrictions.error.message}
+          </p>
+        ) : (
+          <p className="t-ui-md text-(--color-text-secondary)">Loading…</p>
+        )}
+      </Modal>
+    )
+  }
+  // Mount the body with the loaded restrictions so each opening starts from what's saved.
+  return <ShareModalBody page={page} restrictions={restrictions.data} onClose={onClose} />
 }
 
-function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) {
+function ShareModalBody({ page, restrictions, onClose }: { page: Page; restrictions: PageRestrictionsDto; onClose: () => void }) {
   const userById = useUserLookup()
   const users = useUserList()
   const currentUser = useCurrentUser()
   const navigate = useNavigate()
-  const updatePageMeta = useContentStore((s) => s.updatePageMeta)
-  const pages = useContentStore((s) => s.pages)
-  const tree = usePageTree(page.spaceId)
+  const setRestrictions = useSetRestrictions()
   const pushToast = useUIStore((s) => s.pushToast)
-  const [scope, setScope] = useState<Scope>(initialScope(page))
-  const [people, setPeople] = useState(() => initialPeople(page, currentUser.id))
+  const [scope, setScope] = useState<Scope>(initialScope(restrictions))
+  const [people, setPeople] = useState(() => initialPeople(restrictions, currentUser.id))
   const url = pageUrl(page)
-
-  const inherited = ancestorChainIn(tree, page.id)
-    .slice(0, -1)
-    .map((n) => pages[n.id])
-    .filter((p): p is Page => Boolean(p?.restricted))
+  const canChange = Boolean(page.access?.restrict)
+  // Groups on the lists aren't edited here; they are kept as they are.
+  const groups = (list: PrincipalDto[]): PrincipalRef[] => list.filter((p) => p.type === 'group').map((p) => ({ type: 'group', id: p.id }))
 
   function save() {
-    // You always keep access to a page you restrict, so you cannot lock yourself out.
-    const listed = [currentUser.id, ...people.map((p) => p.id)]
-    const editors = [currentUser.id, ...people.filter((p) => p.role === 'edit').map((p) => p.id)]
-    if (scope === 'anyone-space') updatePageMeta(page.id, { restricted: false, viewerIds: undefined, editorIds: undefined })
-    else if (scope === 'anyone-view-some-edit') updatePageMeta(page.id, { restricted: true, viewerIds: undefined, editorIds: editors })
-    else updatePageMeta(page.id, { restricted: true, viewerIds: listed, editorIds: editors })
-    onClose()
-    pushToast({ message: 'Restrictions updated', tone: 'success' })
+    const asRefs = (ids: string[]): PrincipalRef[] => ids.map((id) => ({ type: 'user', id }))
+    // You are always an editor: an empty edit list would let every viewer edit.
+    const editors = asRefs([currentUser.id, ...people.filter((p) => p.role === 'edit').map((p) => p.id)])
+    const everyone = asRefs(people.map((p) => p.id))
+    // The server also keeps you on any list you set, so you cannot lock yourself out.
+    const input =
+      scope === 'anyone-space'
+        ? { view: [], edit: [] }
+        : scope === 'anyone-view-some-edit'
+          ? { view: [], edit: [...editors, ...groups(restrictions.edit)] }
+          : { view: [...everyone, ...groups(restrictions.view)], edit: [...editors, ...groups(restrictions.edit)] }
+    setRestrictions.mutate(
+      { page, input },
+      {
+        onSuccess: () => {
+          onClose()
+          pushToast({ message: 'Restrictions updated', tone: 'success' })
+        },
+      },
+    )
   }
 
   return (
@@ -70,9 +98,11 @@ function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) 
           <Button variant="default" onClick={onClose}>
             Close
           </Button>
-          <Button variant="primary" onClick={save}>
-            Save
-          </Button>
+          {canChange && (
+            <Button variant="primary" onClick={save} loading={setRestrictions.isPending}>
+              Save
+            </Button>
+          )}
         </>
       }
     >
@@ -99,8 +129,9 @@ function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) 
       </section>
 
       <section>
-        <fieldset>
+        <fieldset disabled={!canChange}>
           <legend className="t-ui-md-medium mb-2">Restrictions</legend>
+          {!canChange && <p className="t-ui-sm text-(--color-text-secondary) mb-2">Only people who can edit this page can change its restrictions.</p>}
           <div className="flex flex-col gap-2">
             <RadioRow checked={scope === 'anyone-space'} onSelect={() => setScope('anyone-space')} label="Anyone in space can view and edit" />
             <RadioRow checked={scope === 'anyone-view-some-edit'} onSelect={() => setScope('anyone-view-some-edit')} label="Anyone can view, some can edit" />
@@ -164,27 +195,32 @@ function ShareModalBody({ page, onClose }: { page: Page; onClose: () => void }) 
           </div>
         )}
 
-        {inherited.length > 0 && (
+        {restrictions.inherited.length > 0 && (
           <div className="mt-4">
             <p className="t-ui-sm-medium text-(--color-text-secondary) mb-1">Inherited restrictions</p>
             <ul className="t-ui-sm text-(--color-text-secondary) flex flex-col gap-1">
-              {inherited.map((a) => (
-                <li key={a.id}>
+              {restrictions.inherited.map((a) => (
+                <li key={a.pageId}>
                   From{' '}
                   <button
                     className="text-(--color-text-link) underline"
                     onClick={() => {
                       onClose()
-                      navigate(`/spaces/${a.spaceId}/pages/${a.id}`)
+                      navigate(`/spaces/${page.spaceId}/pages/${a.pageId}`)
                     }}
                   >
                     {a.title}
                   </button>
-                  : {a.viewerIds ? `only ${a.viewerIds.map((id) => userById(id).name).join(', ')} can view` : 'some people can’t edit'}.
+                  : only {a.view.map((p) => (p.type === 'user' ? userById(p.id).name : p.name)).join(', ')} can view.
                 </li>
               ))}
             </ul>
           </div>
+        )}
+        {setRestrictions.isError && (
+          <p role="alert" className="t-ui-sm text-(--status-danger-text) mt-3">
+            Couldn’t save the restrictions: {setRestrictions.error.message}
+          </p>
         )}
       </section>
     </Modal>

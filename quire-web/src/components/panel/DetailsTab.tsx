@@ -3,6 +3,7 @@ import { Paperclip, Tag } from 'lucide-react'
 import type { Page } from '../../types'
 import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
+import { relativeTime } from '@quire/shared'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -16,7 +17,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 export function DetailsTab({ page }: { page: Page }) {
   const userById = useUserLookup()
   const owner = userById(page.ownerId)
-  const created = page.versions[page.versions.length - 1]
 
   return (
     <div className="px-4 py-2 overflow-y-auto h-full">
@@ -26,7 +26,7 @@ export function DetailsTab({ page }: { page: Page }) {
           {owner.name}
         </div>
       </Row>
-      <Row label="Created">{created ? `${created.relativeTime}` : 'Just now'}</Row>
+      <Row label="Created">{page.createdAt ? relativeTime(page.createdAt) : 'Just now'}</Row>
       <Row label="Word count">{page.wordCount.toLocaleString()} words · {page.readTime}</Row>
       <Row label="Labels">
         {page.labels.length ? (
@@ -47,9 +47,6 @@ export function DetailsTab({ page }: { page: Page }) {
           <Paperclip className="w-4 h-4" strokeWidth={1.5} />
           None yet
         </div>
-      </Row>
-      <Row label="Analytics">
-        <span className="text-(--color-text-secondary)">128 views · 6 viewers this week</span>
       </Row>
     </div>
   )

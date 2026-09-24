@@ -22,7 +22,7 @@ describe('page tree keyboard (WAI-ARIA tree pattern)', () => {
   it('exposes level, position and set size, with a single tab stop on the current page', () => {
     renderApp('/spaces/sp.eng/pages/pg.adr-012')
     const tree = screen.getByRole('tree', { name: 'Engineering pages' })
-    const current = within(tree).getByRole('treeitem', { name: 'ADR-012 Queueing' })
+    const current = within(tree).getByRole('treeitem', { name: 'ADR-012: Queueing strategy for payment events' })
     expect(current).toHaveAttribute('aria-level', '3')
     expect(current).toHaveAttribute('aria-posinset', '1')
     expect(current).toHaveAttribute('aria-setsize', '2')
@@ -45,7 +45,7 @@ describe('page tree keyboard (WAI-ARIA tree pattern)', () => {
     await user.keyboard('{ArrowRight}')
     expect(architecture).toHaveAttribute('aria-expanded', 'true')
     await user.keyboard('{ArrowRight}')
-    expect(document.activeElement).toBe(within(tree).getByRole('treeitem', { name: 'ADR-012 Queueing' }))
+    expect(document.activeElement).toBe(within(tree).getByRole('treeitem', { name: 'ADR-012: Queueing strategy for payment events' }))
 
     await user.keyboard('{ArrowLeft}')
     expect(document.activeElement).toBe(architecture)

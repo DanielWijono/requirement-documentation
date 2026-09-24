@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import { renderApp } from '../renderApp'
-import { useContentStore } from '../../src/store/contentStore'
 import { useUIStore } from '../../src/store/uiStore'
+import { fakeDb } from '../fakeApi/db'
+
+/** Publish `html` as a page's body in the fake, as if someone had published it. */
+function published(pageId: string, html: string) {
+  Object.assign(fakeDb.pages.get(pageId)!, { publishedHtml: html, draft: null })
+}
 
 describe('editor keyboard (design.md §9.1, §11)', () => {
   async function openEditor() {
@@ -45,17 +50,18 @@ describe('reading: comment anchors (design.md §6.9)', () => {
     const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
     // The anchored sentence only exists in the unpublished draft.
     await user.click(screen.getByRole('button', { name: 'View' }))
-    const anchor = screen.getByRole('button', { name: 'Comment on “events are retried up to 5 times”' })
+    const anchor = await screen.findByRole('button', { name: 'Comment on “events are retried up to 5 times”' })
     await user.click(anchor)
     const panel = screen.getByRole('complementary', { name: 'Page panel' })
-    const thread = within(panel).getByText(/cover the retry policy/).closest('[id^="comment-"]')
+    const thread = (await within(panel).findByText(/cover the retry policy/)).closest('[id^="comment-"]')
     expect(thread).toHaveAttribute('aria-current', 'true')
   })
 
   it('resolved comments are not highlighted', async () => {
-    useContentStore.getState().toggleResolveComment('pg.adr-012', 'c1')
-    const { user } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
+    fakeDb.comments.get('c1')!.resolvedAt = new Date().toISOString()
+    const { user, queryClient } = renderApp('/spaces/sp.eng/pages/pg.adr-012')
     await user.click(screen.getByRole('button', { name: 'View' }))
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
     expect(document.querySelector('mark[data-comment-id]')).toBeNull()
   })
 
@@ -74,23 +80,23 @@ describe('reading: comment anchors (design.md §6.9)', () => {
 
 describe('reading: internal links (design.md §9.4)', () => {
   it('shows a preview card after hovering and navigates in-app on click', async () => {
-    useContentStore.getState().saveContent('pg.runbooks', '<p>See <a href="/spaces/sp.eng/pages/pg.onboarding">onboarding</a>.</p>', { publish: true })
+    published('pg.runbooks', '<p>See <a href="/spaces/sp.eng/pages/pg.onboarding">onboarding</a>.</p>')
     const { user } = renderApp('/spaces/sp.eng/pages/pg.runbooks')
     const link = screen.getByRole('link', { name: 'onboarding' })
     await user.hover(link)
     const card = await screen.findByRole('tooltip')
-    expect(card).toHaveTextContent('Onboarding')
+    await waitFor(() => expect(card).toHaveTextContent('Onboarding'))
     expect(card).toHaveTextContent(/Engineering · Updated/)
     await user.click(link)
     expect(window.location.pathname).toBe('/spaces/sp.eng/pages/pg.onboarding')
   })
 
   it('preview never reveals the title of a page the reader cannot view', async () => {
-    useContentStore.getState().saveContent('pg.runbooks', '<p><a href="/spaces/sp.people/pages/pg.benefits">secret</a></p>', { publish: true })
+    published('pg.runbooks', '<p><a href="/spaces/sp.people/pages/pg.benefits">secret</a></p>')
     const { user } = renderApp('/spaces/sp.eng/pages/pg.runbooks')
     await user.hover(screen.getByRole('link', { name: 'secret' }))
     const card = await screen.findByRole('tooltip')
-    expect(card).toHaveTextContent('You don’t have access to this page.')
+    await waitFor(() => expect(card).toHaveTextContent('You don’t have access to this page.'))
     expect(card).not.toHaveTextContent('Benefits')
     await user.unhover(screen.getByRole('link', { name: 'secret' }))
     await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())

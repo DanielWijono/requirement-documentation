@@ -1,12 +1,15 @@
 import { createPortal } from 'react-dom'
-import { canView, useContentStore } from '../../store/contentStore'
+import { ApiError } from '../../lib/apiClient'
+import { usePageQuery } from '../../queries/pages'
 import { useSpace } from '../../queries/spaces'
 
 /** Hover card for internal page links (design.md §9.4). Restricted pages never leak their title. */
 export function LinkPreviewCard({ spaceId, pageId, rect }: { spaceId: string; pageId: string; rect: DOMRect }) {
-  const page = useContentStore((s) => s.pages[pageId])
+  const query = usePageQuery(pageId)
+  const page = query.data
   const space = useSpace(spaceId)
-  const visible = page && page.spaceId === spaceId && canView(page) && page.state !== 'deleted'
+  const visible = page && page.spaceId === spaceId && page.state !== 'deleted'
+  const forbidden = query.error instanceof ApiError && query.error.status === 403
   const excerpt = visible
     ? (page.publishedHtml ?? page.contentHtml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
     : ''
@@ -25,8 +28,10 @@ export function LinkPreviewCard({ spaceId, pageId, rect }: { spaceId: string; pa
           </p>
           <p className="t-ui-sm">{excerpt}</p>
         </>
+      ) : query.isPending ? (
+        <p className="t-ui-sm text-(--color-text-secondary)">Loading…</p>
       ) : (
-        <p className="t-ui-sm text-(--color-text-secondary)">{page ? 'You don’t have access to this page.' : 'This page doesn’t exist.'}</p>
+        <p className="t-ui-sm text-(--color-text-secondary)">{forbidden ? 'You don’t have access to this page.' : 'This page doesn’t exist.'}</p>
       )}
     </div>,
     document.body,

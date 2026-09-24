@@ -1,4 +1,4 @@
-import { sessionContract, spacesContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
+import { pagesContract, sessionContract, spacesContract, type ContractClient, type ContractTarget } from '@quire/shared/contract'
 import { SEED_PASSWORD } from '@quire/shared/seed'
 import { fakeDb, SEED_ADMIN_ID } from '../fakeApi/db'
 
@@ -10,12 +10,13 @@ let clients = 0
 function fakeClient(): ContractClient {
   const ORIGIN = `http://client-${++clients}.contract.test`
   const jar = new Map<string, string>()
-  async function request(method: string, path: string, body?: unknown) {
+  async function request(method: string, path: string, body?: unknown, extra: Record<string, string> = {}) {
     const res = await fetch(`${ORIGIN}${path}`, {
       method,
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(jar.size ? { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') } : {}),
+        ...extra,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
@@ -28,11 +29,11 @@ function fakeClient(): ContractClient {
     return res
   }
   return {
-    get: (path) => request('GET', path),
-    post: (path, body = {}) => request('POST', path, body),
-    put: (path, body = {}) => request('PUT', path, body),
-    patch: (path, body = {}) => request('PATCH', path, body),
-    delete: (path) => request('DELETE', path),
+    get: (path, headers) => request('GET', path, undefined, headers),
+    post: (path, body = {}, headers) => request('POST', path, body, headers),
+    put: (path, body = {}, headers) => request('PUT', path, body, headers),
+    patch: (path, body = {}, headers) => request('PATCH', path, body, headers),
+    delete: (path, headers) => request('DELETE', path, undefined, headers),
   }
 }
 
@@ -44,3 +45,4 @@ const target = (): ContractTarget => ({
 
 sessionContract(target)
 spacesContract(target)
+pagesContract(target)

@@ -1,6 +1,8 @@
 import { inviteAcceptSchema, inviteCreateSchema, MIN_PASSWORD_LENGTH, type InviteLookupDto } from '@quire/shared'
 import { http, HttpResponse } from 'msw'
 import { fakeDb, SESSION_COOKIE } from './db'
+import { contentHandlers } from './content'
+import { pageHandlers } from './pages'
 import { spaceHandlers } from './spaces'
 import { body, fail, sessionUser } from './util'
 
@@ -68,6 +70,9 @@ export const handlers = [
     return HttpResponse.json({ ok: true }, { status: 201, headers: setSession(fakeDb.createSession(id)) })
   }),
 
+  // Specific paths before the patterns that would swallow them (/search/quick before /search, etc.).
+  ...contentHandlers,
+  ...pageHandlers,
   ...spaceHandlers,
 
   // Anything the fake doesn't implement yet fails loudly instead of hanging a test.

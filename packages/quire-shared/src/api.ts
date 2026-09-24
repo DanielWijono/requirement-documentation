@@ -206,6 +206,12 @@ export interface PageNodeDto {
   /** Has its own view or edit restriction. */
   restricted: boolean
   hasChildren: boolean
+  updatedAt: string
+}
+
+/** The whole visible tree of a space (`?all=1`), nested. */
+export interface PageTreeDto extends PageNodeDto {
+  children: PageTreeDto[]
 }
 
 export interface DraftDto {
@@ -315,6 +321,7 @@ export interface PageItemDto {
   icon: string | null
   status: PageStatusDto
   hasDraft: boolean
+  spaceId: string
   spaceKey: string
   spaceName: string
   updatedAt: string
@@ -363,6 +370,7 @@ export interface SearchResultDto {
   id: string
   title: string
   icon: string | null
+  spaceId: string
   spaceKey: string
   spaceName: string
   isBlogPost: boolean
@@ -383,8 +391,8 @@ export interface SearchResponseDto {
 
 /** The command palette: quick title matches. */
 export interface QuickSearchDto {
-  pages: { id: string; title: string; icon: string | null; spaceKey: string; spaceName: string }[]
-  spaces: { key: string; name: string; icon: string }[]
+  pages: { id: string; title: string; icon: string | null; spaceId: string; spaceKey: string; spaceName: string; updatedAt: string }[]
+  spaces: { id: string; key: string; name: string; icon: string }[]
 }
 
 /** Split `ts_headline` output that uses \u0001 / \u0002 as start and stop markers. */

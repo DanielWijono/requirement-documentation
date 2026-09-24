@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { renderApp } from '../renderApp'
-import { findTreeNodeIn, useContentStore } from '../../src/store/contentStore'
+import { fakeDb } from '../fakeApi/db'
 
-const content = () => useContentStore.getState()
 const newPageId = () => window.location.pathname.split('/')[4]
+/** The page the app just created and opened in the editor. */
+async function created() {
+  await waitFor(() => expect(window.location.pathname).toMatch(/\/edit$/))
+  return fakeDb.pages.get(newPageId())!
+}
 
 describe('create flow (design.md §8.4)', () => {
   it('templates prefill the page body and show a preview outline', async () => {
@@ -15,7 +19,7 @@ describe('create flow (design.md §8.4)', () => {
     const preview = within(dialog).getByLabelText('Template preview')
     expect(within(preview).getByText('What went well')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Create' }))
-    expect(content().pages[newPageId()].contentHtml).toContain('<h2>What went well</h2>')
+    expect((await created()).draft?.html).toContain('<h2>What went well</h2>')
     expect(await screen.findByRole('heading', { name: 'What went well' })).toBeInTheDocument()
   })
 
@@ -25,7 +29,9 @@ describe('create flow (design.md §8.4)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Create' })
     await user.click(within(dialog).getByRole('button', { name: /Meeting notes/ }))
     await user.keyboard('{Meta>}{Enter}{/Meta}')
-    expect(content().pages[newPageId()]).toMatchObject({ title: 'Untitled', contentHtml: '<p></p>' })
+    const page = await created()
+    expect(page).toMatchObject({ title: 'Untitled', status: 'draft' })
+    expect(page.draft?.html).toBe('<p></p>')
   })
 
   it('defaults the parent to the current page’s parent context', async () => {
@@ -41,9 +47,11 @@ describe('create flow (design.md §8.4)', () => {
     const row = within(nav).getByText('Runbooks').closest('[role="treeitem"]') as HTMLElement
     await user.click(within(row).getByRole('button', { name: 'Add child page' }))
     expect(screen.queryByRole('dialog', { name: 'Create' })).not.toBeInTheDocument()
-    expect(window.location.pathname).toMatch(/\/edit$/)
-    expect(content().pages[newPageId()]).toMatchObject({ parentId: 'pg.runbooks', state: 'draft' })
-    expect(findTreeNodeIn(content().pageTree['sp.eng'], 'pg.runbooks')?.children.at(-1)?.id).toBe(newPageId())
+    const page = await created()
+    expect(page).toMatchObject({ parentId: 'pg.runbooks', status: 'draft', ownerId: 'u.daniel' })
+    // Placed after the existing children.
+    const siblings = [...fakeDb.pages.values()].filter((p) => p.parentId === 'pg.runbooks' && p.id !== page.id)
+    expect(siblings.every((s) => s.position < page.position)).toBe(true)
   })
 
   it('space templates page lists the shared templates with their sections', () => {

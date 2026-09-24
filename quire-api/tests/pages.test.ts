@@ -1,4 +1,4 @@
-import { MEMBERS_GROUP_ID, type DraftDto, type PageDto, type PageNodeDto, type PageRestrictionsDto, type PageVersionDetailDto, type PageVersionDto, type UserDto } from '@quire/shared'
+import { MEMBERS_GROUP_ID, type DraftDto, type PageDto, type PageNodeDto, type PageTreeDto, type PageRestrictionsDto, type PageVersionDetailDto, type PageVersionDto, type UserDto } from '@quire/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import * as t from '../src/db/schema.ts'
@@ -96,6 +96,8 @@ describe('creating pages', () => {
     ])
     const child = await body<PageDto>(await member.get(`/api/pages/${b.id}`))
     expect(child.ancestors).toEqual([{ id: parent.id, title: 'Plan' }])
+    const all = await body<PageTreeDto[]>(await member.get('/api/spaces/ENG/tree?all=1'))
+    expect(all.map((n) => [n.title, n.hasChildren, n.children.map((c) => c.title)])).toEqual([['Plan', true, ['A', 'B']]])
     expect(child.draft).toBeNull()
     expect(a.parentId).toBe(parent.id)
   })
@@ -313,6 +315,7 @@ describe('restrictions', () => {
     })
     expect((await member.get(`/api/pages/${child.id}`)).status).toBe(403)
     expect(await body<PageNodeDto[]>(await member.get('/api/spaces/ENG/tree'))).toEqual([])
+    expect(await body<PageTreeDto[]>(await member.get('/api/spaces/ENG/tree?all=1'))).toEqual([])
     const ownerTree = await body<PageNodeDto[]>(await owner.get('/api/spaces/ENG/tree'))
     expect(ownerTree[0]).toMatchObject({ restricted: true, hasChildren: true })
 
@@ -353,6 +356,13 @@ describe('restrictions', () => {
 })
 
 describe('collaborators, stars and watches', () => {
+  it('shows a visible page under a hidden draft at the top of the full tree', async () => {
+    const draft = await create(owner, { title: 'Owner draft' })
+    const child = await published(owner, { title: 'Public child', parentId: draft.id })
+    const tree = await body<PageTreeDto[]>(await member.get('/api/spaces/ENG/tree?all=1'))
+    expect(tree.map((n) => n.id)).toEqual([child.id])
+  })
+
   it('shares a draft with collaborators', async () => {
     const draft = await create(owner)
     const res = await owner.put(`/api/pages/${draft.id}/collaborators`, { userIds: [member.user.id, member.user.id] })

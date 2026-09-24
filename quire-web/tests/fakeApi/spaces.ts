@@ -13,6 +13,7 @@ import {
 } from '@quire/shared'
 import { http, HttpResponse } from 'msw'
 import { fakeDb, type FakeSpace } from './db'
+import { publishedCount } from './pages'
 import { body, fail, withUser } from './util'
 
 /** The spaces family of the fake API: same rules as `quire-api/src/routes/spaces.ts`. */
@@ -41,7 +42,7 @@ export function spaceDto(space: FakeSpace, userId: string): SpaceDto {
     ownerId: space.ownerId,
     archived: space.archived,
     lastActivityAt: space.lastActivityAt,
-    pageCount: space.pageCount,
+    pageCount: publishedCount(space.id),
     memberCount: memberCount(space),
     starred: fakeDb.spaceStars.has(`${userId}:${space.id}`),
     watched: fakeDb.spaceWatches.has(`${userId}:${space.id}`),
@@ -119,7 +120,6 @@ export const spaceHandlers = [
         { principalType: 'user', principalId: user.id, perms: [...SPACE_PERMISSIONS] },
         { principalType: 'group', principalId: MEMBERS_GROUP_ID, perms: ['View', 'Add', 'Edit', 'Comment'] },
       ],
-      pageCount: 0,
     }
     fakeDb.spaces.set(space.id, space)
     return HttpResponse.json(spaceDto(space, user.id), { status: 201 })

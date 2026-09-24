@@ -6,7 +6,7 @@ import { ToastHost } from '../ui/ToastHost'
 import { CommandPalette } from '../search/CommandPalette'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { useUIStore } from '../../store/uiStore'
-import { useContentStore } from '../../store/contentStore'
+import { usePage } from '../../queries/pages'
 import { useSpaceList } from '../../queries/spaces'
 
 function isTypingTarget(el: EventTarget | null) {
@@ -24,7 +24,7 @@ export function AppShell() {
   const createOpen = useUIStore((s) => s.createPageOpen)
   const spaces = useSpaceList()
   // New pages default to the current page's parent context, i.e. a sibling of what you are reading.
-  const currentParentId = useContentStore((s) => (pageId ? s.pages[pageId]?.parentId ?? null : null))
+  const currentParentId = usePage(pageId)?.parentId ?? null
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {

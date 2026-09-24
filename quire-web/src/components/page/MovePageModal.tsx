@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { findTreeNodeIn, useContentStore, usePageTree } from '../../store/contentStore'
+import { findTreeNodeIn } from '../../lib/tree'
+import { useMovePage, usePageTree } from '../../queries/pages'
 import { useUIStore } from '../../store/uiStore'
 import type { PageTreeNode } from '../../types'
 import type { PageRef } from './usePageActions'
@@ -19,17 +20,22 @@ export function MovePageModal({ page, open, onClose }: { page: PageRef; open: bo
 
 function MovePageModalBody({ page, onClose }: { page: PageRef; onClose: () => void }) {
   const tree = usePageTree(page.spaceId)
-  const movePage = useContentStore((s) => s.movePage)
+  const movePage = useMovePage()
   const pushToast = useUIStore((s) => s.pushToast)
   const [parentId, setParentId] = useState<string | null>(page.parentId)
   const options = useMemo(() => flatten(tree, page.id), [tree, page.id])
 
   function handleMove() {
-    if (movePage(page.id, parentId)) {
-      const parentTitle = parentId ? findTreeNodeIn(tree, parentId)?.title : 'space root'
-      pushToast({ message: `Moved to ${parentTitle}`, tone: 'success' })
-    }
-    onClose()
+    const parentTitle = parentId ? findTreeNodeIn(tree, parentId)?.title : 'space root'
+    movePage.mutate(
+      { pageId: page.id, move: { parentId } },
+      {
+        onSuccess: () => {
+          pushToast({ message: `Moved to ${parentTitle}`, tone: 'success' })
+          onClose()
+        },
+      },
+    )
   }
 
   return (
@@ -43,7 +49,7 @@ function MovePageModalBody({ page, onClose }: { page: PageRef; onClose: () => vo
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleMove} disabled={parentId === page.parentId}>
+          <Button variant="primary" onClick={handleMove} disabled={parentId === page.parentId} loading={movePage.isPending}>
             Move
           </Button>
         </>
@@ -66,6 +72,11 @@ function MovePageModalBody({ page, onClose }: { page: PageRef; onClose: () => vo
           </option>
         ))}
       </select>
+      {movePage.isError && (
+        <p role="alert" className="t-ui-sm text-(--status-danger-text) mt-2">
+          Couldn’t move the page: {movePage.error.message}
+        </p>
+      )}
     </Modal>
   )
 }

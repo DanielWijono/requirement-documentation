@@ -11,7 +11,7 @@ import { testQueryClient } from './testQueryClient'
  */
 export function renderApp(path = '/', { signedIn = true, prefetch = true }: { signedIn?: boolean; prefetch?: boolean } = {}) {
   window.history.pushState({}, '', path)
-  const queryClient = testQueryClient({ signedIn, prefetch })
+  const queryClient = testQueryClient({ signedIn, prefetch, path })
   if (!signedIn) clearCookies()
   const user = userEvent.setup()
   return { user, queryClient, ...render(<App queryClient={queryClient} />) }

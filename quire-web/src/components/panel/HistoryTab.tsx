@@ -5,18 +5,31 @@ import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { Lozenge } from '../ui/Lozenge'
 import { VersionCompareModal } from './VersionCompareModal'
+import { useVersions } from '../../queries/pages'
 
 export function HistoryTab({ page }: { page: Page }) {
   const userById = useUserLookup()
   const [compareVersion, setCompareVersion] = useState<number | null>(null)
+  const versions = useVersions({ id: page.id, publishedVersion: page.publishedVersion })
 
-  if (page.versions.length === 0) {
+  if (versions.isPending) return <p className="t-ui-md text-(--color-text-secondary) text-center mt-8 px-4">Loading history…</p>
+  if (versions.isError) {
+    return (
+      <p role="alert" className="t-ui-md text-(--status-danger-text) text-center mt-8 px-4">
+        Couldn’t load history.{' '}
+        <button className="underline" onClick={() => void versions.refetch()}>
+          Try again
+        </button>
+      </p>
+    )
+  }
+  if (versions.data.length === 0) {
     return <p className="t-ui-md text-(--color-text-secondary) text-center mt-8 px-4">No published versions yet.</p>
   }
 
   return (
     <div className="overflow-y-auto h-full">
-      {page.versions.map((v) => {
+      {versions.data.map((v) => {
         const author = userById(v.authorId)
         return (
           <button
@@ -39,11 +52,7 @@ export function HistoryTab({ page }: { page: Page }) {
         )
       })}
 
-      <VersionCompareModal
-        page={page}
-        version={compareVersion}
-        onClose={() => setCompareVersion(null)}
-      />
+      <VersionCompareModal page={page} versions={versions.data} version={compareVersion} onClose={() => setCompareVersion(null)} />
     </div>
   )
 }

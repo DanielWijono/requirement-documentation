@@ -92,6 +92,7 @@ describe('search', () => {
 
   it('filters by space, type, contributor, modified and label, reporting what each filter removes', async () => {
     expect(titles(await find(member, { q: 'payments', space: 'eng', label: 'payments' }))).toEqual(['Payments roadmap', 'Old payments spec'])
+    expect(titles(await find(member, { q: 'payments', space: 'sp.eng', label: 'payments' }))).toEqual(['Payments roadmap', 'Old payments spec'])
     expect(titles(await find(member, { type: 'blog' }))).toEqual(['Onboarding guide'])
     expect(titles(await find(member, { contributor: member.user.id }))).toEqual(['Onboarding guide'])
     expect(titles(await find(member, { modified: 'today' }))).toEqual(['Onboarding guide'])
@@ -126,8 +127,10 @@ describe('quick search', () => {
     expect(res.pages.map((p) => p.title)).toContain('Payments draft')
     const theirs = (await (await member.get('/api/search/quick?q=pay')).json()) as QuickSearchDto
     expect(theirs.pages.map((p) => p.title).sort()).toEqual(['Old payments spec', 'Payments roadmap'])
+    const scoped = (await (await member.get('/api/search/quick?q=on&space=OPS')).json()) as QuickSearchDto
+    expect(scoped.pages.map((p) => p.title)).toEqual(['Onboarding guide'])
     const spaces = (await (await member.get('/api/search/quick?q=op')).json()) as QuickSearchDto
-    expect(spaces.spaces).toEqual([{ key: 'OPS', name: 'Operations', icon: '📁' }])
+    expect(spaces.spaces).toEqual([{ id: 'sp.ops', key: 'OPS', name: 'Operations', icon: '📁' }])
     expect(await (await member.get('/api/search/quick?q=%20')).json()).toEqual({ pages: [], spaces: [] })
   })
 })

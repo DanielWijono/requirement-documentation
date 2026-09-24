@@ -7,6 +7,7 @@ import { CommentsTab } from './CommentsTab'
 import { DetailsTab } from './DetailsTab'
 import { HistoryTab } from './HistoryTab'
 import { useReturnFocus } from '../../hooks/useReturnFocus'
+import { useComments } from '../../queries/comments'
 
 const TABS: { id: RightPanelTab; label: string }[] = [
   { id: 'comments', label: 'Comments' },
@@ -19,9 +20,11 @@ export function RightPanel({ page }: { page: Page }) {
   const tab = useUIStore((s) => s.rightPanelTab)
   const setTab = useUIStore((s) => s.setRightPanelTab)
   const close = useUIStore((s) => s.closeRightPanel)
+  const comments = useComments(page.id)
   useReturnFocus(open)
 
   if (!open) return null
+  const openThreads = (comments.data ?? []).filter((c) => !c.resolved && !c.deleted).length
 
   return (
     <>
@@ -44,9 +47,7 @@ export function RightPanel({ page }: { page: Page }) {
               )}
             >
               {t.label}
-              {t.id === 'comments' && page.comments.filter((c) => !c.resolved).length > 0 && (
-                <span className="ml-1.5">{page.comments.filter((c) => !c.resolved).length}</span>
-              )}
+              {t.id === 'comments' && openThreads > 0 && <span className="ml-1.5">{openThreads}</span>}
             </button>
           ))}
           <button onClick={close} className="ml-auto w-7 h-7 flex items-center justify-center rounded-(--radius-sm) hover:bg-(--color-bg-hover) text-(--color-text-secondary)" aria-label="Close panel">

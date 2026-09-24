@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useUIStore } from '../../store/uiStore'
-import { useContentStore } from '../../store/contentStore'
+import { useAddComment, useComments } from '../../queries/comments'
 import type { Page } from '../../types'
 import { CommentThread } from './CommentThread'
 import { Button } from '../ui/Button'
@@ -8,20 +8,29 @@ import { Button } from '../ui/Button'
 export function CommentsTab({ page }: { page: Page }) {
   const [showResolved, setShowResolved] = useState(false)
   const [draft, setDraft] = useState('')
-  const addComment = useContentStore((s) => s.addComment)
+  const comments = useComments(page.id)
+  const addComment = useAddComment(page.id)
   const pushToast = useUIStore((s) => s.pushToast)
   const pendingAnchor = useUIStore((s) => s.pendingCommentAnchor)
   const setPendingAnchor = useUIStore((s) => s.setPendingCommentAnchor)
 
-  const visible = page.comments.filter((c) => showResolved || !c.resolved)
-  const resolvedCount = page.comments.filter((c) => c.resolved).length
+  const all = comments.data ?? []
+  const visible = all.filter((c) => showResolved || !c.resolved)
+  const resolvedCount = all.filter((c) => c.resolved).length
+  const canComment = Boolean(page.access?.comment)
 
   function submit() {
-    if (!draft.trim()) return
-    addComment(page.id, draft.trim(), pendingAnchor ?? undefined)
-    setDraft('')
-    setPendingAnchor(null)
-    pushToast({ message: 'Comment added', tone: 'success' })
+    if (!draft.trim() || addComment.isPending) return
+    addComment.mutate(
+      { body: draft.trim(), anchorText: pendingAnchor ?? null },
+      {
+        onSuccess: () => {
+          setDraft('')
+          setPendingAnchor(null)
+          pushToast({ message: 'Comment added', tone: 'success' })
+        },
+      },
+    )
   }
 
   return (
@@ -37,12 +46,22 @@ export function CommentsTab({ page }: { page: Page }) {
         )}
       </div>
       <div className="flex-1 overflow-y-auto px-4 flex flex-col gap-3">
-        {visible.length === 0 ? (
+        {comments.isPending ? (
+          <p className="t-ui-md text-(--color-text-secondary) text-center mt-8">Loading comments…</p>
+        ) : comments.isError ? (
+          <p role="alert" className="t-ui-md text-(--status-danger-text) text-center mt-8">
+            Couldn’t load comments.{' '}
+            <button className="underline" onClick={() => void comments.refetch()}>
+              Try again
+            </button>
+          </p>
+        ) : visible.length === 0 ? (
           <p className="t-ui-md text-(--color-text-secondary) text-center mt-8">No comments yet.</p>
         ) : (
-          visible.map((c) => <CommentThread key={c.id} pageId={page.id} comment={c} />)
+          visible.map((c) => <CommentThread key={c.id} pageId={page.id} comment={c} canComment={canComment} />)
         )}
       </div>
+      {canComment && (
       <div className="p-3 border-t border-(--color-border-default) shrink-0">
         {pendingAnchor && (
           <div className="flex items-start gap-1.5 mb-2 t-ui-sm text-(--color-text-secondary)">
@@ -62,12 +81,18 @@ export function CommentsTab({ page }: { page: Page }) {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()
           }}
         />
+        {addComment.isError && (
+          <p role="alert" className="t-ui-sm text-(--status-danger-text) mt-1">
+            Couldn’t post your comment: {addComment.error.message}. It’s still here, so you can try again.
+          </p>
+        )}
         <div className="flex justify-end mt-2">
-          <Button variant="primary" size="compact" onClick={submit} disabled={!draft.trim()}>
+          <Button variant="primary" size="compact" onClick={submit} disabled={!draft.trim()} loading={addComment.isPending}>
             Comment
           </Button>
         </div>
       </div>
+      )}
     </div>
   )
 }

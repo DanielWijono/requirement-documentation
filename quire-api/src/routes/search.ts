@@ -34,7 +34,7 @@ function conditions(subject: Subject, input: SearchInput, omit?: SearchFilter): 
     eq(t.pages.status, 'published'),
     visiblePagesSql(subject),
     input.q ? textMatch(input.q) : undefined,
-    f('space') ? eq(t.spaces.key, input.space!.toUpperCase()) : undefined,
+    f('space') ? or(eq(t.spaces.key, input.space!.toUpperCase()), eq(t.spaces.id, input.space!)) : undefined,
     f('type') ? eq(t.pages.isBlogPost, input.type === 'blog') : undefined,
     f('contributor') ? or(eq(t.pages.updatedById, input.contributor!), eq(t.pages.ownerId, input.contributor!)) : undefined,
     f('modified') ? sql`${t.pages.updatedAt} >= now() - make_interval(days => ${SEARCH_MODIFIED[input.modified!]})` : undefined,
@@ -84,6 +84,7 @@ export const search = new Hono<AppEnv>()
           id: t.pages.id,
           title: t.pages.title,
           icon: t.pages.icon,
+          spaceId: t.spaces.id,
           spaceKey: t.spaces.key,
           spaceName: t.spaces.name,
           isBlogPost: t.pages.isBlogPost,
@@ -132,12 +133,13 @@ export const search = new Hono<AppEnv>()
   .get('/quick', requireUser, async (c) => {
     const { db } = c.var
     const q = (c.req.query('q') ?? '').trim().slice(0, 200)
+    const space = c.req.query('space')?.trim()
     if (!q) return c.json<QuickSearchDto>({ pages: [], spaces: [] })
     const subject = await sessionSubject(c)
     const like = `%${likeEscape(q)}%`
     const [pages, spaces] = await Promise.all([
       db
-        .select({ id: t.pages.id, title: t.pages.title, icon: t.pages.icon, spaceKey: t.spaces.key, spaceName: t.spaces.name })
+        .select({ id: t.pages.id, title: t.pages.title, icon: t.pages.icon, spaceId: t.spaces.id, spaceKey: t.spaces.key, spaceName: t.spaces.name, updatedAt: t.pages.updatedAt })
         .from(t.pages)
         .innerJoin(t.spaces, eq(t.spaces.id, t.pages.spaceId))
         .where(
@@ -145,16 +147,17 @@ export const search = new Hono<AppEnv>()
             inArray(t.pages.status, ['draft', 'published']),
             visiblePagesSql(subject),
             sql`(${t.pages.title} ilike ${like} or similarity(${t.pages.title}, ${q}) > 0.3)`,
+            space ? or(eq(t.spaces.id, space), eq(t.spaces.key, space.toUpperCase())) : undefined,
           ),
         )
         .orderBy(desc(sql`${t.pages.title} ilike ${`${likeEscape(q)}%`}`), desc(sql`similarity(${t.pages.title}, ${q})`), desc(t.pages.updatedAt))
         .limit(8),
       db
-        .select({ key: t.spaces.key, name: t.spaces.name, icon: t.spaces.icon })
+        .select({ id: t.spaces.id, key: t.spaces.key, name: t.spaces.name, icon: t.spaces.icon })
         .from(t.spaces)
         .where(and(visibleSpacesSql(subject), sql`(${t.spaces.name} ilike ${like} or ${t.spaces.key} ilike ${like})`))
         .orderBy(asc(t.spaces.name))
         .limit(5),
     ])
-    return c.json<QuickSearchDto>({ pages, spaces })
+    return c.json<QuickSearchDto>({ pages: pages.map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })), spaces })
   })

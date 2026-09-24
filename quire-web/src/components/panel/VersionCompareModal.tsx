@@ -1,11 +1,11 @@
 import { createPortal } from 'react-dom'
 import { ArrowLeft, RotateCcw, Link as LinkIcon } from 'lucide-react'
 import { useState } from 'react'
-import type { Page } from '../../types'
+import type { Page, PageVersion } from '../../types'
 import { useUserLookup } from '../../queries/users'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { useReturnFocus } from '../../hooks/useReturnFocus'
-import { useContentStore } from '../../store/contentStore'
+import { useRestoreVersion, useVersionHtml } from '../../queries/pages'
 import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
@@ -54,29 +54,35 @@ function DiffPane({ paragraphs, show }: { paragraphs: DiffPart[][]; show: DiffOp
 
 export function VersionCompareModal({
   page,
+  versions,
   version,
   onClose,
 }: {
   page: Page
+  versions: PageVersion[]
   version: number | null
   onClose: () => void
 }) {
   const userById = useUserLookup()
   useEscapeKey(onClose, version !== null)
   useReturnFocus(version !== null)
-  const restoreVersion = useContentStore((s) => s.restoreVersion)
+  const restoreVersion = useRestoreVersion()
   const pushToast = useUIStore((s) => s.pushToast)
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const v = version === null ? undefined : versions.find((x) => x.version === version)
+  // Compare the selected version with what is live now; for the live version, with the one before it.
+  const baseVersion = v ? (v.current ? versions.find((x) => x.version < v.version)?.version : v.version) : undefined
+  const selectedHtml = useVersionHtml(page.id, v?.version)
+  const baseHtml = useVersionHtml(page.id, baseVersion)
 
-  if (version === null) return null
-  const v = page.versions.find((x) => x.version === version)
   if (!v) return null
   const author = userById(v.authorId)
-  // Compare the selected version with what is live now; for the live version, with the one before it.
-  const base = v.current ? page.versions.find((x) => x.version < v.version && x.contentHtml !== undefined) : v
-  const target = v.current ? v.contentHtml : page.publishedHtml
-  const comparedLabel = v.current ? (base ? `Version ${base.version} → Version ${v.version}` : null) : `Version ${v.version} → current`
-  const paragraphs = base?.contentHtml !== undefined && target !== undefined ? diffHtml(base.contentHtml, target) : null
+  const loading = selectedHtml.isPending || (baseVersion !== undefined && baseHtml.isPending)
+  const selected = selectedHtml.data ?? undefined
+  const base = baseVersion !== undefined ? (baseHtml.data ?? undefined) : undefined
+  const target = v.current ? selected : page.publishedHtml
+  const comparedLabel = v.current ? (baseVersion !== undefined ? `Version ${baseVersion} → Version ${v.version}` : null) : `Version ${v.version} → current`
+  const paragraphs = base !== undefined && target !== undefined ? diffHtml(base, target) : null
 
   return createPortal(
     <div className="fixed inset-0 z-(--z-modal) bg-(--color-bg-app) flex flex-col">
@@ -99,10 +105,10 @@ export function VersionCompareModal({
           >
             Copy link
           </Button>
-          {!v.current && v.contentHtml === undefined && (
+          {!v.current && !loading && selected === undefined && (
             <span className="t-ui-sm text-(--color-text-secondary)">Content for this version isn’t available to restore</span>
           )}
-          {!v.current && v.contentHtml !== undefined && (
+          {!v.current && selected !== undefined && page.access?.edit && (
             <Button variant="primary" size="compact" icon={<RotateCcw strokeWidth={1.5} />} onClick={() => setConfirmRestore(true)}>
               Restore this version
             </Button>
@@ -112,9 +118,11 @@ export function VersionCompareModal({
       <div className="flex-1 overflow-y-auto py-8 px-6">
         <div className="max-w-[960px] mx-auto">
           <h1 className="t-content-title mb-2">{page.title}</h1>
-          {paragraphs === null ? (
+          {loading ? (
+            <p className="t-ui-md text-(--color-text-secondary)">Loading versions…</p>
+          ) : paragraphs === null ? (
             <p className="t-ui-md text-(--color-text-secondary)">
-              {v.contentHtml === undefined ? 'Content for this version isn’t available, so it can’t be compared.' : 'There is no earlier version to compare with.'}
+              {selected === undefined ? 'Content for this version isn’t available, so it can’t be compared.' : 'There is no earlier version to compare with.'}
             </p>
           ) : !hasChanges(paragraphs) ? (
             <p className="t-ui-md text-(--color-text-secondary)">{comparedLabel}: no text changes.</p>
@@ -155,12 +163,23 @@ export function VersionCompareModal({
             </Button>
             <Button
               variant="primary"
-              onClick={() => {
-                restoreVersion(page.id, v.version)
-                setConfirmRestore(false)
-                onClose()
-                pushToast({ message: `Restored version ${v.version}`, tone: 'success' })
-              }}
+              loading={restoreVersion.isPending}
+              onClick={() =>
+                restoreVersion.mutate(
+                  { page, version: v.version },
+                  {
+                    onSuccess: () => {
+                      setConfirmRestore(false)
+                      onClose()
+                      pushToast({ message: `Restored version ${v.version}`, tone: 'success' })
+                    },
+                    onError: (err) => {
+                      setConfirmRestore(false)
+                      pushToast({ message: `Couldn’t restore version ${v.version}: ${err.message}`, tone: 'danger' })
+                    },
+                  },
+                )
+              }
             >
               Restore
             </Button>

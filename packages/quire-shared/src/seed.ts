@@ -83,7 +83,7 @@ export const pageTree: Record<string, PageTreeNode[]> = {
           title: 'Architecture',
           state: 'published',
           children: [
-            { id: 'pg.adr-012', title: 'ADR-012 Queueing', state: 'published-unpublished-changes', children: [] },
+            { id: 'pg.adr-012', title: 'ADR-012: Queueing strategy for payment events', state: 'published-unpublished-changes', children: [] },
             { id: 'pg.service-map', title: 'Service map', state: 'published', restricted: true, children: [] },
           ],
         },
@@ -95,7 +95,7 @@ export const pageTree: Record<string, PageTreeNode[]> = {
       state: 'published',
       children: [
         { id: 'pg.incident-response', title: 'Incident response', state: 'published', children: [] },
-        { id: 'pg.deploys', title: 'Deploys', state: 'draft', children: [] },
+        { id: 'pg.deploys', title: 'Untitled', state: 'draft', children: [] },
       ],
     },
     { id: 'pg.new-draft', title: 'Untitled', state: 'draft', children: [] },
@@ -107,7 +107,7 @@ export const pageTree: Record<string, PageTreeNode[]> = {
       state: 'published',
       children: [
         { id: 'pg.q3-plan', title: 'Q3 plan', state: 'published', children: [] },
-        { id: 'pg.q4-plan', title: 'Q4 plan', state: 'draft', children: [] },
+        { id: 'pg.q4-plan', title: 'Untitled', state: 'draft', children: [] },
       ],
     },
     { id: 'pg.discovery', title: 'Discovery notes', state: 'published', children: [] },

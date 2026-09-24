@@ -5,14 +5,14 @@ import type { Comment } from '../../types'
 import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
-import { useContentStore } from '../../store/contentStore'
+import { useReply, useResolveComment } from '../../queries/comments'
 import { useUIStore } from '../../store/uiStore'
 
-export function CommentThread({ pageId, comment }: { pageId: string; comment: Comment }) {
+export function CommentThread({ pageId, comment, canComment = true }: { pageId: string; comment: Comment & { deleted?: boolean }; canComment?: boolean }) {
   const userById = useUserLookup()
   const author = userById(comment.authorId)
-  const toggleResolve = useContentStore((s) => s.toggleResolveComment)
-  const addReply = useContentStore((s) => s.addReply)
+  const resolve = useResolveComment(pageId)
+  const reply = useReply(pageId)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
   const focused = useUIStore((s) => s.focusedCommentId === comment.id)
@@ -23,10 +23,16 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
   }, [focused])
 
   function submitReply() {
-    if (!replyText.trim()) return
-    addReply(pageId, comment.id, replyText.trim())
-    setReplyText('')
-    setReplyOpen(false)
+    if (!replyText.trim() || reply.isPending) return
+    reply.mutate(
+      { commentId: comment.id, body: replyText.trim() },
+      {
+        onSuccess: () => {
+          setReplyText('')
+          setReplyOpen(false)
+        },
+      },
+    )
   }
 
   return (
@@ -52,7 +58,8 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
             <span className="t-ui-md-medium">{author.name}</span>
             <span className="t-ui-sm text-(--color-text-secondary)">{comment.relativeTime}</span>
           </div>
-          <p className="t-ui-md mt-0.5">{comment.body}</p>
+          <p className={clsx('t-ui-md mt-0.5', comment.deleted && 'italic text-(--color-text-secondary)')}>{comment.deleted ? 'This comment was deleted.' : comment.body}</p>
+          {canComment && !comment.deleted && (
           <div className="flex items-center gap-3 mt-1.5">
             <button onClick={() => setReplyOpen((v) => !v)} className="t-ui-sm-medium text-(--color-text-secondary) hover:text-(--color-text-primary)">
               Reply
@@ -61,7 +68,7 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
               <SmilePlus className="w-3.5 h-3.5" strokeWidth={1.5} /> React
             </button>
             <button
-              onClick={() => toggleResolve(pageId, comment.id)}
+              onClick={() => resolve.mutate({ commentId: comment.id, resolved: !comment.resolved })}
               className="t-ui-sm-medium text-(--color-text-secondary) hover:text-(--color-text-primary) inline-flex items-center gap-1"
             >
               <Check className="w-3.5 h-3.5" strokeWidth={1.5} /> {comment.resolved ? 'Reopen' : 'Resolve'}
@@ -70,6 +77,7 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
               <MoreHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
           </div>
+          )}
 
           {comment.replies?.map((r) => {
             const rAuthor = userById(r.authorId)
@@ -102,7 +110,12 @@ export function CommentThread({ pageId, comment }: { pageId: string; comment: Co
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitReply()
                 }}
               />
-              <Button variant="primary" size="compact" onClick={submitReply} disabled={!replyText.trim()}>
+              {reply.isError && (
+                <p role="alert" className="t-ui-sm text-(--status-danger-text) self-start">
+                  Couldn’t post your reply: {reply.error.message}
+                </p>
+              )}
+              <Button variant="primary" size="compact" onClick={submitReply} disabled={!replyText.trim()} loading={reply.isPending}>
                 Reply
               </Button>
               </div>

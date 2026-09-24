@@ -18,6 +18,7 @@ export function toSpace(dto: SpaceDto): Space {
     memberCount: dto.memberCount,
     pageCount: dto.pageCount,
     lastActivity: relativeTime(dto.lastActivityAt),
+    lastActivityAt: dto.lastActivityAt,
     starred: dto.starred,
     watched: dto.watched,
     archived: dto.archived,

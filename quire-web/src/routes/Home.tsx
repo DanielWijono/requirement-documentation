@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { FileText, Rocket, Star } from 'lucide-react'
-import { isVisiblePage, useContentStore } from '../store/contentStore'
+import { relativeTime } from '@quire/shared'
 import { useUIStore } from '../store/uiStore'
-import { followingFeed } from '../data/mockData'
+import { useMyDrafts, useRecentPages, useStarred } from '../queries/home'
+import { useSearch } from '../queries/search'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import { useUserLookup } from '../queries/users'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -12,12 +14,16 @@ export function Home() {
   const userById = useUserLookup()
   const navigate = useNavigate()
   const spaces = useSpaceList()
-  const pages = useContentStore((s) => s.pages)
-  const recentlyViewed = useContentStore((s) => s.recentlyViewed)
   const openCreatePage = useUIStore((s) => s.openCreatePage)
-  const drafts = Object.values(pages).filter((p) => p.state === 'draft' && p.ownerId === 'u.daniel')
-  const starred = Object.values(pages).filter((p) => p.starred && isVisiblePage(p))
+  const recent = useRecentPages()
+  const draftsQuery = useMyDrafts()
+  const starredQuery = useStarred()
+  const updated = useSearch({ sort: 'modified', limit: 5 })
+  const recentlyViewed = recent.data ?? []
+  const drafts = draftsQuery.data ?? []
+  const starred = starredQuery.data?.pages ?? []
 
+  if (recent.isPending || draftsQuery.isPending) return <PageSkeleton />
   const isNewUser = recentlyViewed.length === 0 && drafts.length === 0
 
   if (isNewUser) {
@@ -45,23 +51,18 @@ export function Home() {
             <section>
               <h2 className="t-content-h3 mb-3">Recently viewed</h2>
               <div className="flex flex-col rounded-(--radius-md) border border-(--color-border-default) divide-y divide-(--color-border-default) bg-(--color-bg-canvas)">
-                {recentlyViewed.map((r) => {
-                  const page = pages[r.pageId]
-                  const space = spaces.find((s) => s.id === r.spaceId)
-                  if (!isVisiblePage(page)) return null
-                  return (
-                    <button
-                      key={r.pageId}
-                      onClick={() => navigate(`/spaces/${r.spaceId}/pages/${r.pageId}`)}
-                      className="flex items-center gap-3 px-4 h-12 text-left hover:bg-(--color-bg-hover)"
-                    >
-                      <FileText className="w-4 h-4 text-(--color-text-secondary) shrink-0" strokeWidth={1.5} />
-                      <span className="t-ui-md truncate grow">{page.title}</span>
-                      <span className="t-ui-sm text-(--color-text-secondary) shrink-0">{space?.name}</span>
-                      <span className="t-ui-sm text-(--color-text-secondary) shrink-0 w-24 text-right">{r.relativeTime}</span>
-                    </button>
-                  )
-                })}
+                {recentlyViewed.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => navigate(`/spaces/${r.spaceId}/pages/${r.id}`)}
+                    className="flex items-center gap-3 px-4 h-12 text-left hover:bg-(--color-bg-hover)"
+                  >
+                    <FileText className="w-4 h-4 text-(--color-text-secondary) shrink-0" strokeWidth={1.5} />
+                    <span className="t-ui-md truncate grow">{r.title}</span>
+                    <span className="t-ui-sm text-(--color-text-secondary) shrink-0">{r.spaceName}</span>
+                    <span className="t-ui-sm text-(--color-text-secondary) shrink-0 w-24 text-right">{r.viewedAt ? relativeTime(r.viewedAt) : ''}</span>
+                  </button>
+                ))}
               </div>
             </section>
 
@@ -79,7 +80,8 @@ export function Home() {
                     >
                       <FileText className="w-4 h-4 text-(--color-text-secondary) shrink-0" strokeWidth={1.5} />
                       <span className="t-ui-md italic text-(--color-text-secondary) truncate grow">{p.title}</span>
-                      <span className="t-ui-sm text-(--color-text-secondary) shrink-0">{p.updatedRelative}</span>
+                      {p.hasDraft && <span className="t-ui-sm text-(--color-text-secondary) shrink-0">Unpublished changes</span>}
+                      <span className="t-ui-sm text-(--color-text-secondary) shrink-0">{relativeTime(p.updatedAt)}</span>
                     </button>
                   ))}
                 </div>
@@ -87,29 +89,33 @@ export function Home() {
             </section>
 
             <section>
-              <h2 className="t-content-h3 mb-3">Following feed</h2>
-              <div className="flex flex-col gap-3">
-                {followingFeed.map((f) => {
-                  const page = pages[f.pageId]
-                  const author = userById(f.authorId)
-                  if (!isVisiblePage(page)) return null
-                  return (
-                    <button
-                      key={f.pageId}
-                      onClick={() => navigate(`/spaces/${f.spaceId}/pages/${f.pageId}`)}
-                      className="text-left p-4 rounded-(--radius-md) border border-(--color-border-default) bg-(--color-bg-canvas) hover:border-(--color-border-strong)"
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Avatar user={author} size={16} />
-                        <span className="t-ui-sm text-(--color-text-secondary)">
-                          {author.name} updated <span className="t-ui-sm-medium text-(--color-text-primary)">{page.title}</span> &middot; {f.relativeTime}
-                        </span>
-                      </div>
-                      <p className="t-ui-md text-(--color-text-secondary) line-clamp-2">{f.summary}</p>
-                    </button>
-                  )
-                })}
-              </div>
+              <h2 className="t-content-h3 mb-3">Recently updated</h2>
+              {updated.isPending ? (
+                <p className="t-ui-md text-(--color-text-secondary)">Loading…</p>
+              ) : (updated.data?.results.length ?? 0) === 0 ? (
+                <p className="t-ui-md text-(--color-text-secondary)">Nothing has been published yet.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {updated.data!.results.map((p) => {
+                    const author = userById(p.updatedById)
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => navigate(`/spaces/${p.spaceId}/pages/${p.id}`)}
+                        className="text-left p-4 rounded-(--radius-md) border border-(--color-border-default) bg-(--color-bg-canvas) hover:border-(--color-border-strong)"
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Avatar user={author} size={16} />
+                          <span className="t-ui-sm text-(--color-text-secondary)">
+                            {author.name} updated <span className="t-ui-sm-medium text-(--color-text-primary)">{p.title}</span> &middot; {relativeTime(p.updatedAt)}
+                          </span>
+                        </div>
+                        <p className="t-ui-md text-(--color-text-secondary) line-clamp-2">{p.snippet.map((part) => part.text).join('')}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </section>
           </div>
 

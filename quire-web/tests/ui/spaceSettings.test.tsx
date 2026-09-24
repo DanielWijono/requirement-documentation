@@ -4,9 +4,11 @@ import { http, HttpResponse } from 'msw'
 import { renderApp } from '../renderApp'
 import { server } from '../fakeApi/server'
 import { fakeDb } from '../fakeApi/db'
-import { useContentStore } from '../../src/store/contentStore'
+import { treeNodes } from '../fakeApi/pages'
+import type { PageTreeDto } from '@quire/shared'
 
-const content = () => useContentStore.getState()
+const count = (nodes: PageTreeDto[]): number => nodes.reduce((n, node) => n + 1 + count(node.children), 0)
+
 const space = (id: string) => fakeDb.spaces.get(id)
 const starred = (id: string) => fakeDb.spaceStars.has(`u.daniel:${id}`)
 const watched = (id: string) => fakeDb.spaceWatches.has(`u.daniel:${id}`)
@@ -14,8 +16,9 @@ const watched = (id: string) => fakeDb.spaceWatches.has(`u.daniel:${id}`)
 describe('space overview (design.md §8.3)', () => {
   it('shows live page counts and toggles Watch and Star', async () => {
     const { user } = renderApp('/spaces/sp.product')
-    // Everyone in the workspace is in the members group, which can view the space.
-    expect(screen.getByText(`PROD · 4 pages · ${fakeDb.activeUserIds().length} members`)).toBeInTheDocument()
+    // Pages the person can see in the tree; everyone in the workspace is in the members group, which can view the space.
+    const visible = count(treeNodes('sp.product', 'u.daniel'))
+    expect(screen.getByText(`PROD · ${visible} pages · ${fakeDb.activeUserIds().length} members`)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Watch' }))
     // The button flips at once; the server catches up.
     expect(screen.getByRole('button', { name: 'Watching' })).toHaveAttribute('aria-pressed', 'true')
@@ -77,9 +80,9 @@ describe('space settings (design.md §8.8)', () => {
   it('labels tab counts labels used in the space and links to search', async () => {
     const { user } = renderApp('/spaces/sp.eng/settings')
     await user.click(screen.getByRole('tab', { name: 'Labels' }))
-    await user.click(screen.getByRole('button', { name: /payments/ }))
+    await user.click(await screen.findByRole('button', { name: /payments/ }))
     expect(window.location.search).toBe('?label=payments')
-    expect(within(screen.getByRole('group', { name: 'Labels' })).getByRole('button', { name: 'payments' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await within(screen.getByRole('group', { name: 'Labels' })).findByRole('button', { name: 'payments' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('archives and restores the space', async () => {
@@ -101,7 +104,6 @@ describe('space settings (design.md §8.8)', () => {
     await user.click(del)
     await waitFor(() => expect(window.location.pathname).toBe('/spaces'))
     expect(space('sp.people')).toBeUndefined()
-    expect(content().pages['pg.benefits']).toBeUndefined()
     expect(screen.queryByText('People')).not.toBeInTheDocument()
   })
 })

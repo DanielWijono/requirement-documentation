@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { FileText, LayoutTemplate, MessagesSquare, Rows3 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { useContentStore } from '../../store/contentStore'
+import { useCreatePage, usePageTree } from '../../queries/pages'
 import type { PageTreeNode } from '../../types'
 import { TEMPLATES, templateOutline } from '../../data/templates'
 import { useSpaceList } from '../../queries/spaces'
@@ -35,20 +35,27 @@ export function CreatePageModal(props: CreatePageModalProps) {
 function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = null }: CreatePageModalProps) {
   const navigate = useNavigate()
   const spaces = useSpaceList()
-  const pageTree = useContentStore((s) => s.pageTree)
-  const createPage = useContentStore((s) => s.createPage)
+  const createPage = useCreatePage()
 
   const [spaceId, setSpaceId] = useState(defaultSpaceId)
   const [parentId, setParentId] = useState<string | null>(defaultParentId)
   const [templateId, setTemplateId] = useState('blank')
 
-  const flatPages = useMemo(() => flattenTree(pageTree[spaceId] ?? []), [pageTree, spaceId])
+  const tree = usePageTree(spaceId)
+  const flatPages = useMemo(() => flattenTree(tree), [tree])
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0]
 
   function handleCreate(chosen = template) {
-    const id = createPage(spaceId, parentId, chosen.title, chosen.html)
-    onClose()
-    navigate(`/spaces/${spaceId}/pages/${id}/edit`)
+    if (createPage.isPending) return
+    createPage.mutate(
+      { spaceKey: spaceId, parentId, title: chosen.title, html: chosen.html },
+      {
+        onSuccess: (page) => {
+          onClose()
+          navigate(`/spaces/${page.spaceId}/pages/${page.id}/edit`)
+        },
+      },
+    )
   }
 
   return (
@@ -62,7 +69,7 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => handleCreate()} data-autofocus>
+          <Button variant="primary" onClick={() => handleCreate()} data-autofocus loading={createPage.isPending}>
             Create
           </Button>
         </>
@@ -151,6 +158,11 @@ function CreatePageModalBody({ open, onClose, defaultSpaceId, defaultParentId = 
           <p className="t-ui-sm text-(--color-text-secondary) mt-3">Press {'⌘'} Enter to create a blank page immediately.</p>
         </div>
       </div>
+      {createPage.isError && (
+        <p role="alert" className="t-ui-sm text-(--status-danger-text) mt-3">
+          Couldn’t create the page: {createPage.error.message}
+        </p>
+      )}
     </Modal>
   )
 }

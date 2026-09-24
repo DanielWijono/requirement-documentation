@@ -27,6 +27,8 @@ export interface Space {
   permissions?: Record<string, SpacePermission[]>
   /** What the signed-in person may do here (from the API), `Admin` expanded. */
   myPermissions?: SpacePermission[]
+  /** From the API: when anything in the space last changed. */
+  lastActivityAt?: string
 }
 
 export const SPACE_PERMISSIONS = ['View', 'Add', 'Edit', 'Delete', 'Comment', 'Admin'] as const
@@ -100,4 +102,15 @@ export interface Page {
   wordCount: number
   isBlogPost?: boolean
   starred?: boolean
+  watched?: boolean
+  /** From the API: what the signed-in person may do with this page. */
+  access?: { view: boolean; edit: boolean; comment: boolean; addChild: boolean; delete: boolean; restrict: boolean }
+  /** From the API: the version to send in If-Match when publishing. */
+  lockVersion?: number
+  /** From the API: the draft revision to send in If-Match when saving; undefined without a draft. */
+  draftRev?: number
+  publishedVersion?: number
+  /** From the API: ancestors, root first. */
+  ancestors?: { id: string; title: string }[]
+  createdAt?: string
 }

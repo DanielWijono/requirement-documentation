@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { renderApp } from '../renderApp'
-import { useContentStore } from '../../src/store/contentStore'
+import { fakeDb } from '../fakeApi/db'
 import { useUIStore } from '../../src/store/uiStore'
 
 describe('routing & shell', () => {
-  it('renders Home with recently viewed, drafts, following feed and spaces', () => {
+  it('renders Home with recently viewed, drafts, recently updated and spaces', async () => {
     renderApp('/')
-    for (const h of ['Recently viewed', 'Drafts', 'Following feed', 'Your spaces']) {
+    expect(await screen.findByRole('heading', { name: 'Recently viewed' })).toBeInTheDocument()
+    for (const h of ['Drafts', 'Recently updated', 'Your spaces']) {
       expect(screen.getByRole('heading', { name: h })).toBeInTheDocument()
     }
     // archived space is hidden from "Your spaces"
@@ -15,21 +16,22 @@ describe('routing & shell', () => {
     expect(within(aside).queryByText('Legacy platform')).not.toBeInTheDocument()
   })
 
-  it('shows the new-user empty state when there is no history and no drafts', () => {
-    const pages = Object.fromEntries(
-      Object.entries(useContentStore.getState().pages).filter(([, p]) => p.state !== 'draft'),
-    )
-    useContentStore.setState({ recentlyViewed: [], pages })
+  it('shows the new-user empty state when there is no history and no drafts', async () => {
+    fakeDb.recentViews.clear()
+    for (const p of fakeDb.pages.values()) {
+      if (p.status === 'draft') fakeDb.pages.delete(p.id)
+      else p.draft = null
+    }
     renderApp('/')
-    expect(screen.getByRole('heading', { name: /start by joining a space/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /start by joining a space/i })).toBeInTheDocument()
   })
 
   it('navigates from Home recently viewed to the page', async () => {
     const { user } = renderApp('/')
-    const recent = screen.getByRole('heading', { name: 'Recently viewed' }).parentElement!
+    const recent = (await screen.findByRole('heading', { name: 'Recently viewed' })).parentElement!
     await user.click(within(recent).getByRole('button', { name: /ADR-012: Queueing strategy/ }))
     expect(window.location.pathname).toBe('/spaces/sp.eng/pages/pg.adr-012')
-    expect(screen.getByRole('heading', { level: 1, name: /ADR-012/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: /ADR-012/ })).toBeInTheDocument()
   })
 
   it('renders NotFound for unknown routes and unknown page ids', async () => {
@@ -40,7 +42,7 @@ describe('routing & shell', () => {
     unmount()
 
     renderApp('/spaces/sp.eng/pages/missing')
-    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
   })
 
   it.each([
@@ -57,7 +59,7 @@ describe('routing & shell', () => {
     renderApp('/spaces/sp.eng/pages/pg.adr-012')
     const nav = screen.getByRole('navigation', { name: 'Engineering' })
     const active = within(nav).getByRole('treeitem', { selected: true })
-    expect(active).toHaveTextContent('ADR-012 Queueing')
+    expect(active).toHaveTextContent('ADR-012: Queueing strategy for payment events')
     expect(within(nav).getByText('Service map')).toBeInTheDocument()
   })
 
@@ -79,17 +81,6 @@ describe('routing & shell', () => {
     await user.click(screen.getByRole('menuitem', { name: /Density/ }))
     expect(document.documentElement).toHaveAttribute('data-density', 'compact')
     expect(useUIStore.getState().density).toBe('compact')
-  })
-})
-
-describe('demo data reset', () => {
-  it('account menu "Reset demo data" restores seed content (dev only)', async () => {
-    useContentStore.getState().deletePage('pg.handbook')
-    const { user } = renderApp('/spaces/sp.eng')
-    await user.click(screen.getByRole('button', { name: 'Account menu' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Reset demo data' }))
-    expect(window.location.pathname).toBe('/')
-    expect(useContentStore.getState().pages['pg.handbook'].state).toBe('published')
   })
 })
 

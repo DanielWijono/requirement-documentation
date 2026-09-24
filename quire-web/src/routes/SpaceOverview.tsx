@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { Eye, MoreHorizontal, Star } from 'lucide-react'
-import { isVisiblePage, useContentStore, usePageTree } from '../store/contentStore'
+import { countNodes } from '../lib/tree'
+import { usePageTree } from '../queries/pages'
 import { useUIStore } from '../store/uiStore'
 import { downloadFile } from '../lib/download'
 import { Button } from '../components/ui/Button'
@@ -15,17 +16,17 @@ export function SpaceOverview() {
   const tree = usePageTree(spaceId)
   const toggleSpaceStar = useToggleSpaceStar()
   const toggleSpaceWatch = useToggleSpaceWatch()
-  const pages = useContentStore((s) => s.pages)
   const pushToast = useUIStore((s) => s.pushToast)
 
   if (!space) return fallback
-  const spacePages = Object.values(pages).filter((p) => p.spaceId === space.id && isVisiblePage(p))
+  const pageCount = countNodes(tree)
 
   function exportSpace() {
     if (!space) return
-    const body = JSON.stringify({ space, pages: spacePages, tree }, null, 2)
+    // The page outline as this person sees it; page bodies stay on the server.
+    const body = JSON.stringify({ space, tree }, null, 2)
     downloadFile(`${space.key.toLowerCase()}-export.json`, body)
-    pushToast({ message: `Exported ${spacePages.length} pages`, tone: 'success' })
+    pushToast({ message: `Exported ${pageCount} pages`, tone: 'success' })
   }
 
   return (
@@ -36,7 +37,7 @@ export function SpaceOverview() {
           <div className="grow">
             <h1 className="t-content-title">{space.name}</h1>
             <p className="t-ui-sm text-(--color-text-secondary) mt-1">
-              {space.key} &middot; {spacePages.length} page{spacePages.length === 1 ? '' : 's'} &middot; {space.memberCount} members
+              {space.key} &middot; {pageCount} page{pageCount === 1 ? '' : 's'} &middot; {space.memberCount} members
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0 pt-1">

@@ -4,12 +4,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { FileText, Plus, Search, Sun, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { isVisiblePage, useContentStore } from '../../store/contentStore'
 import { useEscapeKey } from '../../hooks/useClickOutside'
 import { useReturnFocus } from '../../hooks/useReturnFocus'
 import { useUserList } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { useSpaceList } from '../../queries/spaces'
+import { useRecentPages } from '../../queries/home'
+import { useQuickSearch } from '../../queries/search'
+import { useDebounced } from '../../hooks/useDebounced'
+import { relativeTime } from '@quire/shared'
 
 interface Result {
   id: string
@@ -47,12 +50,13 @@ function CommandPaletteBody() {
   const { spaceId } = useParams()
   const spaces = useSpaceList()
   const users = useUserList()
-  const pages = useContentStore((s) => s.pages)
-  const recentlyViewed = useContentStore((s) => s.recentlyViewed)
+  const recent = useRecentPages()
 
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<string | null>(spaceId ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const debounced = useDebounced(query, 150)
+  const quick = useQuickSearch(debounced, scope)
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -65,16 +69,13 @@ function CommandPaletteBody() {
 
   const results: Result[] = useMemo(() => {
     if (!query.trim()) {
-      const recents: Result[] = recentlyViewed.filter((r) => isVisiblePage(pages[r.pageId])).slice(0, 5).map((r) => {
-        const p = pages[r.pageId]
-        return {
-          id: `recent-${r.pageId}`,
-          kind: 'page',
-          title: p?.title ?? r.pageId,
-          subtitle: spaces.find((s) => s.id === r.spaceId)?.name,
-          onSelect: () => navigate(`/spaces/${r.spaceId}/pages/${r.pageId}`),
-        }
-      })
+      const recents: Result[] = (recent.data ?? []).slice(0, 5).map((p) => ({
+        id: `recent-${p.id}`,
+        kind: 'page',
+        title: p.title,
+        subtitle: p.spaceName,
+        onSelect: () => navigate(`/spaces/${p.spaceId}/pages/${p.id}`),
+      }))
       const recentSpaces: Result[] = spaces.slice(0, 3).map((s) => ({
         id: `space-${s.id}`,
         kind: 'space',
@@ -96,25 +97,25 @@ function CommandPaletteBody() {
     }
 
     const q = query.toLowerCase()
-    const pool = Object.values(pages).filter((p) => isVisiblePage(p) && (scope ? p.spaceId === scope : true))
-    const pageResults: Result[] = pool
-      .filter((p) => p.title.toLowerCase().includes(q))
-      .slice(0, 8)
-      .map((p) => ({
-        id: `p-${p.id}`,
-        kind: 'page',
-        title: p.title,
-        subtitle: `${spaces.find((s) => s.id === p.spaceId)?.name} · ${p.updatedRelative}`,
-        onSelect: () => navigate(`/spaces/${p.spaceId}/pages/${p.id}`),
-      }))
-    const spaceResults: Result[] = spaces
-      .filter((s) => s.name.toLowerCase().includes(q) || s.key.toLowerCase().includes(q))
-      .map((s) => ({ id: `s-${s.id}`, kind: 'space', title: s.name, subtitle: s.key, onSelect: () => navigate(`/spaces/${s.id}`) }))
+    const pageResults: Result[] = (quick.data?.pages ?? []).map((p) => ({
+      id: `p-${p.id}`,
+      kind: 'page',
+      title: p.title,
+      subtitle: `${p.spaceName} · ${relativeTime(p.updatedAt)}`,
+      onSelect: () => navigate(`/spaces/${p.spaceId}/pages/${p.id}`),
+    }))
+    const spaceResults: Result[] = (quick.data?.spaces ?? []).map((s) => ({
+      id: `s-${s.id}`,
+      kind: 'space',
+      title: s.name,
+      subtitle: s.key,
+      onSelect: () => navigate(`/spaces/${s.id}`),
+    }))
     const peopleResults: Result[] = users
       .filter((u) => u.name.toLowerCase().includes(q))
       .map((u) => ({ id: `u-${u.id}`, kind: 'person', title: u.name, onSelect: () => navigate(`/search?contributor=${u.id}`) }))
     return [...pageResults, ...spaceResults, ...peopleResults]
-  }, [query, scope, pages, spaces, users, recentlyViewed, navigate, setTheme, theme, openCreatePage])
+  }, [query, quick.data, spaces, users, recent.data, navigate, setTheme, theme, openCreatePage])
 
   function commit(index: number) {
     const r = results[index]
@@ -166,7 +167,12 @@ function CommandPaletteBody() {
           />
         </div>
         <div className="overflow-y-auto py-1">
-          {results.length === 0 && <p className="t-ui-md text-(--color-text-secondary) text-center py-8">No results. Try removing a filter.</p>}
+          {results.length === 0 &&
+            (query.trim() && (debounced !== query || quick.isFetching) ? (
+              <p className="t-ui-md text-(--color-text-secondary) text-center py-8">Searching…</p>
+            ) : (
+              <p className="t-ui-md text-(--color-text-secondary) text-center py-8">No results. Try removing a filter.</p>
+            ))}
           {results.map((r, i) => (
             <button
               key={r.id}

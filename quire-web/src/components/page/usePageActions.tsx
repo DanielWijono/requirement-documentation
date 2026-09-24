@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { MenuItemSpec } from '../ui/Menu'
 import { ConfirmModal } from '../ui/ConfirmModal'
 import { MovePageModal } from './MovePageModal'
-import { useContentStore, useDerived } from '../../store/contentStore'
+import { useCopyPage, useTrashAction } from '../../queries/pages'
 import { useUIStore } from '../../store/uiStore'
 import type { Page } from '../../types'
 
@@ -11,33 +11,42 @@ export function pageUrl(page: Pick<Page, 'id' | 'spaceId'>) {
   return `${window.location.origin}/spaces/${page.spaceId}/pages/${page.id}`
 }
 
+/** What the actions need to know about a page: tree rows only have this much. */
+export type PageRef = Pick<Page, 'id' | 'spaceId' | 'parentId' | 'title'>
+
 /**
  * Page-level actions shared by the page header and the page tree menus.
  * Returns the menu items plus the dialogs they open; render `dialogs` next to the menu.
+ * The server decides what's allowed; a refusal shows as a toast.
  */
-export type PageRef = Pick<Page, 'id' | 'spaceId' | 'parentId' | 'title'>
-
-export function usePageActions(pageId: string) {
-  // Only the fields the actions need, so autosaves of the page body don't re-render tree rows.
-  const page = useDerived((s): PageRef | null => {
-    const p = s.pages[pageId]
-    return p ? { id: p.id, spaceId: p.spaceId, parentId: p.parentId, title: p.title } : null
-  })
+export function usePageActions(page: PageRef) {
   const navigate = useNavigate()
-  const copyPage = useContentStore((s) => s.copyPage)
-  const archivePage = useContentStore((s) => s.archivePage)
-  const restorePage = useContentStore((s) => s.restorePage)
-  const deletePage = useContentStore((s) => s.deletePage)
+  const copyPage = useCopyPage()
+  const trash = useTrashAction()
   const pushToast = useUIStore((s) => s.pushToast)
   const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  if (!page) return { copyLink: () => {}, items: [] as MenuItemSpec[], dialogs: null }
-
   function copyLink() {
-    if (!page) return
     void navigator.clipboard?.writeText(pageUrl(page))
     pushToast({ message: 'Link copied', tone: 'success' })
+  }
+
+  const failed = (what: string) => (err: Error) => pushToast({ message: `Couldn’t ${what}: ${err.message}`, tone: 'danger' })
+
+  function restore() {
+    trash.mutate({ pageId: page.id, action: 'restore' }, { onError: failed('restore the page') })
+  }
+
+  function trashPage(action: 'archive' | 'delete') {
+    trash.mutate(
+      { pageId: page.id, action },
+      {
+        onSuccess: () =>
+          pushToast({ message: `${action === 'archive' ? 'Archived' : 'Deleted'} “${page.title}”`, tone: 'info', actionLabel: 'Undo', onAction: restore }),
+        onError: failed(`${action} the page`),
+      },
+    )
   }
 
   const items: MenuItemSpec[] = [
@@ -45,22 +54,17 @@ export function usePageActions(pageId: string) {
     { label: 'Move…', onSelect: () => setMoveOpen(true) },
     {
       label: 'Copy…',
-      onSelect: () => {
-        const id = copyPage(page.id)
-        if (!id) return
-        pushToast({ message: `Created “Copy of ${page.title}”`, tone: 'success' })
-        navigate(`/spaces/${page.spaceId}/pages/${id}/edit`)
-      },
+      onSelect: () =>
+        copyPage.mutate(page.id, {
+          onSuccess: (copy) => {
+            pushToast({ message: `Created “${copy.title}”`, tone: 'success' })
+            navigate(`/spaces/${copy.spaceId}/pages/${copy.id}/edit`)
+          },
+          onError: failed('copy the page'),
+        }),
     },
     { label: '', divider: true },
-    {
-      label: 'Archive',
-      destructive: true,
-      onSelect: () => {
-        archivePage(page.id)
-        pushToast({ message: `Archived “${page.title}”`, tone: 'info', actionLabel: 'Undo', onAction: () => restorePage(page.id) })
-      },
-    },
+    { label: 'Archive', destructive: true, onSelect: () => trashPage('archive') },
     { label: 'Delete', destructive: true, onSelect: () => setDeleteOpen(true) },
   ]
 
@@ -72,10 +76,7 @@ export function usePageActions(pageId: string) {
         title="Delete this page?"
         confirmLabel="Delete"
         onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          deletePage(page.id)
-          pushToast({ message: `Deleted “${page.title}”`, tone: 'info', actionLabel: 'Undo', onAction: () => restorePage(page.id) })
-        }}
+        onConfirm={() => trashPage('delete')}
       >
         “{page.title}” and its child pages move to Trash. A space admin can restore them.
       </ConfirmModal>

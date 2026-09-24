@@ -122,6 +122,9 @@ describe('labels', () => {
     ])
     expect(await body<LabelCountDto[]>(await owner.get('/api/labels?q=IN'))).toEqual([{ name: 'infra', count: 3 }])
     expect(await body<LabelCountDto[]>(await member.get('/api/labels?q=_'))).toEqual([])
+    expect(await body<LabelCountDto[]>(await member.get('/api/labels?space=eng&q=a'))).toEqual([{ name: 'api', count: 1 }])
+    await owner.post('/api/spaces', { key: 'OPS', name: 'Operations' })
+    expect(await body<LabelCountDto[]>(await member.get('/api/labels?space=OPS'))).toEqual([])
   })
 })
 

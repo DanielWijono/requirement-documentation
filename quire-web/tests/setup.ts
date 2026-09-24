@@ -31,9 +31,7 @@ const { clearCookies } = await import('./cookies')
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterAll(() => server.close())
 
-const { useContentStore } = await import('../src/store/contentStore')
 const { useUIStore } = await import('../src/store/uiStore')
-const initialContent = useContentStore.getState()
 const initialUI = useUIStore.getState()
 
 beforeEach(() => {
@@ -42,7 +40,6 @@ beforeEach(() => {
   clearCookies()
   document.cookie = `${SESSION_COOKIE}=${fakeDb.createSession(SEED_ADMIN_ID)}; Path=/`
   localStorage.clear()
-  useContentStore.setState(initialContent, true)
   useUIStore.setState(initialUI, true)
   window.history.pushState({}, '', '/')
 })

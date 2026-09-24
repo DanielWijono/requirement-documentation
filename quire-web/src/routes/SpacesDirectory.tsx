@@ -4,7 +4,6 @@ import clsx from 'clsx'
 import { ChevronDown, Plus, Star } from 'lucide-react'
 import { useCurrentUser } from '../hooks/useSession'
 import { useUserLookup } from '../queries/users'
-import { ageInDays } from '../lib/relativeTime'
 import { Button } from '../components/ui/Button'
 import { Menu } from '../components/ui/Menu'
 import { CreateSpaceModal } from '../components/create/CreateSpaceModal'
@@ -30,7 +29,7 @@ export function SpacesDirectory() {
     else if (filter === 'archived') list = list.filter((s) => s.archived)
     else list = list.filter((s) => !s.archived)
 
-    return [...list].sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : ageInDays(a.lastActivity) - ageInDays(b.lastActivity)))
+    return [...list].sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : (b.lastActivityAt ?? '').localeCompare(a.lastActivityAt ?? '')))
   }, [spaces, filter, sort, me.id])
 
   return (

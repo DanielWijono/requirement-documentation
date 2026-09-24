@@ -4,7 +4,8 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import clsx from 'clsx'
 import { Archive, ChevronLeft, FilePlus2, Home, MoreHorizontal, Plus, Settings, SquarePen, LayoutTemplate } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
-import { usePageTree, ancestorChainIn } from '../../store/contentStore'
+import { ancestorChainIn } from '../../lib/tree'
+import { usePageTreeQuery } from '../../queries/pages'
 import { PageTreeItem } from './PageTreeItem'
 import { CreatePageModal } from '../create/CreatePageModal'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
@@ -14,7 +15,8 @@ export function SpaceNav() {
   const { spaceId, pageId } = useParams()
   const navigate = useNavigate()
   const space = useSpace(spaceId)
-  const tree = usePageTree(spaceId)
+  const treeQuery = usePageTreeQuery(spaceId)
+  const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data])
   const navCollapsed = useUIStore((s) => s.navCollapsed)
   const toggleNav = useUIStore((s) => s.toggleNav)
   const navWidth = useUIStore((s) => s.navWidth)
@@ -161,7 +163,20 @@ export function SpaceNav() {
         </button>
       </div>
 
-      {tree.length === 0 ? (
+      {treeQuery.isPending ? (
+        <div id="page-tree" aria-busy="true" aria-label="Loading pages" className="flex-1 px-2 pb-2 flex flex-col gap-1.5 pt-1">
+          {[70, 55, 80, 45, 60].map((w, i) => (
+            <span key={i} className="h-4 rounded-(--radius-sm) bg-(--color-bg-sunken) motion-safe:animate-pulse" style={{ width: `${w}%`, marginLeft: i % 2 ? 16 : 0 }} />
+          ))}
+        </div>
+      ) : treeQuery.isError ? (
+        <div id="page-tree" role="alert" className="flex-1 px-3 pb-2 t-ui-sm text-(--color-text-secondary)">
+          <p className="mb-1">Couldn’t load pages.</p>
+          <button className="text-(--color-text-link) underline" onClick={() => void treeQuery.refetch()}>
+            Try again
+          </button>
+        </div>
+      ) : tree.length === 0 ? (
         <div id="page-tree" tabIndex={-1} className="flex-1 overflow-y-auto px-2 pb-2 outline-none">
           <button
             onClick={() => setCreateOpen(true)}
@@ -185,7 +200,7 @@ export function SpaceNav() {
           className="flex-1 overflow-y-auto px-2 pb-2"
         >
           {tree.map((node, i) => (
-            <PageTreeItem key={node.id} posInSet={i + 1} setSize={tree.length} node={node} spaceId={spaceId!} depth={0} activePageId={pageId} ancestorIds={ancestorIds} />
+            <PageTreeItem key={node.id} posInSet={i + 1} setSize={tree.length} node={node} parentId={null} spaceId={spaceId!} depth={0} activePageId={pageId} ancestorIds={ancestorIds} />
           ))}
         </div>
       )}

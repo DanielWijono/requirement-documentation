@@ -11,7 +11,16 @@ import {
   type Subject,
   type UserDto,
 } from '@quire/shared'
-import { labelToDate, pageTree as seedTree, SEED_PASSWORD, seedEmail, spaces as seedSpaces, users as seedUsers } from '@quire/shared/seed'
+import {
+  labelToDate,
+  pages as seedPages,
+  pageTree as seedTree,
+  recentlyViewedSeed,
+  SEED_PASSWORD,
+  seedEmail,
+  spaces as seedSpaces,
+  users as seedUsers,
+} from '@quire/shared/seed'
 
 /**
  * The fake backend's in-memory state, seeded like `npm run db:seed` so UI tests see the demo workspace.
@@ -37,8 +46,67 @@ export interface FakeSpace {
   archived: boolean
   lastActivityAt: string
   grants: SpaceGrant[]
-  /** Published pages, until pages move into the fake. */
-  pageCount: number
+}
+
+export interface FakeDraft {
+  html: string
+  rev: number
+  updatedAt: string
+  updatedById: string
+}
+
+export interface FakeVersion {
+  version: number
+  html: string | null
+  title: string
+  authorId: string
+  comment: string
+  createdAt: string
+}
+
+export interface FakeRestriction {
+  kind: 'view' | 'edit'
+  principalType: 'user' | 'group'
+  principalId: string
+}
+
+export interface FakePage {
+  id: string
+  spaceId: string
+  parentId: string | null
+  position: number
+  title: string
+  icon: string | null
+  status: 'draft' | 'published' | 'archived' | 'deleted'
+  statusBeforeTrash: 'draft' | 'published' | null
+  ownerId: string
+  updatedById: string
+  publishedHtml: string | null
+  publishedVersion: number
+  lockVersion: number
+  wordCount: number
+  widthMode: 'reading' | 'wide' | 'full'
+  isBlogPost: boolean
+  createdAt: string
+  updatedAt: string
+  draft: FakeDraft | null
+  versions: FakeVersion[]
+  restrictions: FakeRestriction[]
+  collaborators: string[]
+  labels: string[]
+}
+
+export interface FakeComment {
+  id: string
+  pageId: string
+  parentId: string | null
+  authorId: string
+  body: string
+  anchorText: string | null
+  resolvedAt: string | null
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface FakeGroup extends Omit<GroupDto, 'memberCount'> {
@@ -74,6 +142,13 @@ class FakeDb {
   /** `${userId}:${spaceId}` */
   spaceStars = new Set<string>()
   spaceWatches = new Set<string>()
+  pages = new Map<string, FakePage>()
+  comments = new Map<string, FakeComment>()
+  /** `${userId}:${pageId}` */
+  pageStars = new Set<string>()
+  pageWatches = new Set<string>()
+  /** `${userId}:${pageId}` → ISO time */
+  recentViews = new Map<string, string>()
 
   constructor() {
     this.reset()
@@ -117,13 +192,78 @@ class FakeDb {
             { principalType: 'user', principalId: s.ownerId, perms: [...ALL_PERMS] },
             { principalType: 'group', principalId: MEMBERS_GROUP_ID, perms: [...MEMBER_DEFAULT_PERMS] },
           ],
-          pageCount: countPublished(seedTree[s.id] ?? []),
         },
       ]),
     )
     // Like the API seed: the admin's starred and watched flags become their stars and watches.
     this.spaceStars = new Set(seedSpaces.filter((s) => s.starred).map((s) => `${SEED_ADMIN_ID}:${s.id}`))
     this.spaceWatches = new Set(seedSpaces.filter((s) => s.watched).map((s) => `${SEED_ADMIN_ID}:${s.id}`))
+    this.seedPages(now)
+  }
+
+  /** The same mapping as the API's `db:seed` (quire-api/src/db/seed.ts). */
+  private seedPages(now: Date) {
+    const at = (label: string) => labelToDate(label, now).toISOString()
+    const positions = new Map<string, number>()
+    const walk = (nodes: PageTreeNode[]) =>
+      nodes.forEach((n, i) => {
+        positions.set(n.id, i + 1)
+        walk(n.children)
+      })
+    Object.values(seedTree).forEach(walk)
+
+    this.pages = new Map()
+    this.comments = new Map()
+    this.pageStars = new Set()
+    this.pageWatches = new Set()
+    for (const p of Object.values(seedPages)) {
+      const publishedHtml = p.publishedHtml ?? (p.state === 'draft' ? null : p.contentHtml)
+      const status = p.state === 'draft' || p.state === 'archived' || p.state === 'deleted' ? p.state : 'published'
+      const updated = at(p.updatedRelative)
+      const oldest = p.versions.at(-1)
+      const restrictions: FakeRestriction[] = [
+        ...(p.viewerIds ?? []).map((id) => ({ kind: 'view' as const, principalType: 'user' as const, principalId: id })),
+        ...(p.editorIds ?? []).map((id) => ({ kind: 'edit' as const, principalType: 'user' as const, principalId: id })),
+      ]
+      if (p.restricted && restrictions.length === 0) {
+        for (const id of new Set([p.ownerId, SEED_ADMIN_ID])) restrictions.push({ kind: 'edit', principalType: 'user', principalId: id })
+      }
+      this.pages.set(p.id, {
+        id: p.id,
+        spaceId: p.spaceId,
+        parentId: p.parentId,
+        position: positions.get(p.id) ?? 0,
+        title: p.title,
+        icon: p.icon ?? null,
+        status,
+        statusBeforeTrash: status === 'archived' || status === 'deleted' ? (publishedHtml === null ? 'draft' : 'published') : null,
+        ownerId: p.ownerId,
+        updatedById: p.updatedById,
+        publishedHtml,
+        publishedVersion: p.versions[0]?.version ?? 0,
+        lockVersion: 0,
+        wordCount: p.wordCount,
+        widthMode: p.widthMode,
+        isBlogPost: p.isBlogPost ?? false,
+        createdAt: oldest ? at(oldest.relativeTime) : updated,
+        updatedAt: updated,
+        draft: publishedHtml === null || p.contentHtml !== publishedHtml ? { html: p.contentHtml, rev: 1, updatedAt: updated, updatedById: p.updatedById } : null,
+        versions: p.versions.map((v) => ({ version: v.version, html: v.contentHtml ?? (v.current ? publishedHtml : null), title: p.title, authorId: v.authorId, comment: v.comment, createdAt: at(v.relativeTime) })),
+        restrictions,
+        collaborators: [],
+        labels: p.labels.map((l) => l.name),
+      })
+      if (p.starred) this.pageStars.add(`${SEED_ADMIN_ID}:${p.id}`)
+      for (const c of p.comments) {
+        const created = at(c.relativeTime)
+        this.comments.set(c.id, { id: c.id, pageId: p.id, parentId: null, authorId: c.authorId, body: c.body, anchorText: c.anchorText ?? null, resolvedAt: c.resolved ? created : null, deletedAt: null, createdAt: created, updatedAt: created })
+        for (const r of c.replies ?? []) {
+          const rAt = at(r.relativeTime)
+          this.comments.set(r.id, { id: r.id, pageId: p.id, parentId: c.id, authorId: r.authorId, body: r.body, anchorText: null, resolvedAt: null, deletedAt: null, createdAt: rAt, updatedAt: rAt })
+        }
+      }
+    }
+    this.recentViews = new Map(recentlyViewedSeed.map((r) => [`${SEED_ADMIN_ID}:${r.pageId}`, at(r.relativeTime)]))
   }
 
   subject(userId: string): Subject {
@@ -179,10 +319,6 @@ class FakeDb {
     this.users.set(id, { id, ...input, initials: initialsOf(input.name), colorSeed: this.users.size % 8, deactivated: false })
     return id
   }
-}
-
-function countPublished(nodes: PageTreeNode[]): number {
-  return nodes.reduce((n, node) => n + (node.state === 'draft' ? 0 : 1) + countPublished(node.children), 0)
 }
 
 export const fakeDb = new FakeDb()

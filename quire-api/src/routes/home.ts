@@ -13,6 +13,7 @@ const itemColumns = {
   icon: t.pages.icon,
   status: t.pages.status,
   hasDraft: sql<boolean>`exists (select 1 from page_drafts d where d.page_id = ${t.pages.id})`,
+  spaceId: t.spaces.id,
   spaceKey: t.spaces.key,
   spaceName: t.spaces.name,
   updatedAt: t.pages.updatedAt,
@@ -92,16 +93,25 @@ export const home = new Hono<AppEnv>()
     return c.json(rows.map(toItem))
   })
 
-/** `GET /labels?q=`: labels on pages the person can see, most used first. */
+/** `GET /labels?q=&space=`: labels on pages the person can see (in one space, by key or id), most used first. */
 export const labels = new Hono<AppEnv>().get('/', requireUser, async (c) => {
   const subject = await sessionSubject(c)
+  const space = c.req.query('space')?.trim()
   const q = c.req.query('q')?.trim().toLowerCase()
   const pattern = q ? `${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%` : undefined
   const rows = await c.var.db
     .select({ name: t.pageLabels.name, count: count() })
     .from(t.pageLabels)
     .innerJoin(t.pages, eq(t.pages.id, t.pageLabels.pageId))
-    .where(and(live, visiblePagesSql(subject), pattern ? ilike(t.pageLabels.name, pattern) : undefined))
+    .innerJoin(t.spaces, eq(t.spaces.id, t.pages.spaceId))
+    .where(
+      and(
+        live,
+        visiblePagesSql(subject),
+        pattern ? ilike(t.pageLabels.name, pattern) : undefined,
+        space ? or(eq(t.spaces.id, space), eq(t.spaces.key, space.toUpperCase())) : undefined,
+      ),
+    )
     .groupBy(t.pageLabels.name)
     .orderBy(desc(count()), asc(t.pageLabels.name))
     .limit(LIMIT)

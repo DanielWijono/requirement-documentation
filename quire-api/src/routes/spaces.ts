@@ -17,7 +17,7 @@ import * as t from '../db/schema.ts'
 import { badRequest, conflict, isUniqueViolation, readJson } from '../lib/errors.ts'
 import { requireUser, sessionSubject, sessionUser } from '../middleware/session.ts'
 import { requireSpaceAdmin, spaceForSubject, visibleSpacesSql, type SpaceRow } from '../services/access.ts'
-import { treeLevel } from '../services/pages.ts'
+import { treeAll, treeLevel } from '../services/pages.ts'
 import { toSpaceDtos } from '../services/spaces.ts'
 
 async function spaceDto(db: Queryable, subject: Awaited<ReturnType<typeof sessionSubject>>, space: SpaceRow) {
@@ -161,10 +161,11 @@ export const spaces = new Hono<AppEnv>()
     return c.json(await grantDtos(db, space.id))
   })
 
-  /** One level of the page tree (`?parentId=`), or the roots of the trash (`?trash=1`). */
+  /** One level of the page tree (`?parentId=`), the whole tree nested (`?all=1`), or the roots of the trash (`?trash=1`). */
   .get('/:key/tree', requireUser, async (c) => {
     const subject = await sessionSubject(c)
     const { space } = await spaceForSubject(c.var.db, subject, c.req.param('key'))
+    if (c.req.query('all') === '1') return c.json(await treeAll(c.var.db, subject, space.id))
     return c.json(await treeLevel(c.var.db, subject, space.id, c.req.query('parentId') || null, c.req.query('trash') === '1'))
   })
 

@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { MEMBERS_GROUP_ID, type InviteLookupDto, type SpaceDto, type SpaceGrantDto, type UserDto } from '../src/api.ts'
+import {
+  MEMBERS_GROUP_ID,
+  type CommentDto,
+  type DraftDto,
+  type InviteLookupDto,
+  type LabelCountDto,
+  type PageDto,
+  type PageItemDto,
+  type PageRestrictionsDto,
+  type PageTreeDto,
+  type QuickSearchDto,
+  type SearchResponseDto,
+  type SpaceDto,
+  type SpaceGrantDto,
+  type StarredDto,
+  type UserDto,
+} from '../src/api.ts'
 
 /**
  * The contract suite: behaviour both the real API and the web tests' fake backend must share.
@@ -14,11 +30,11 @@ export interface ContractResponse {
 
 /** One independent browser: its own cookies. */
 export interface ContractClient {
-  get(path: string): Promise<ContractResponse>
-  post(path: string, body?: unknown): Promise<ContractResponse>
-  put(path: string, body?: unknown): Promise<ContractResponse>
-  patch(path: string, body?: unknown): Promise<ContractResponse>
-  delete(path: string): Promise<ContractResponse>
+  get(path: string, headers?: Record<string, string>): Promise<ContractResponse>
+  post(path: string, body?: unknown, headers?: Record<string, string>): Promise<ContractResponse>
+  put(path: string, body?: unknown, headers?: Record<string, string>): Promise<ContractResponse>
+  patch(path: string, body?: unknown, headers?: Record<string, string>): Promise<ContractResponse>
+  delete(path: string, headers?: Record<string, string>): Promise<ContractResponse>
 }
 
 export interface ContractTarget {
@@ -189,6 +205,130 @@ export function sessionContract(target: () => ContractTarget) {
       expect((await t.newClient().get('/api/invites/not-a-real-token')).status).toBe(404)
       // Members can't invite.
       expect((await guest.post('/api/invites', { email: 'x@example.com' })).status).toBe(403)
+    })
+  })
+}
+
+export function pagesContract(target: () => ContractTarget) {
+  async function setup() {
+    const t = target()
+    const admin = await signedIn(t, t.admin.email, t.admin.password)
+    const key = `P${unique().replace(/[^a-z]/g, 'x').toUpperCase().slice(0, 5)}`
+    expect((await admin.post('/api/spaces', { key, name: 'Pages contract' })).status).toBe(201)
+    const create = async (over: Record<string, unknown> = {}) => {
+      const res = await admin.post('/api/pages', { spaceKey: key, title: 'Plan', html: '<p>Body text</p>', ...over })
+      expect(res.status).toBe(201)
+      return json<PageDto>(res)
+    }
+    const publish = async (page: PageDto) => json<PageDto>(await admin.post(`/api/pages/${page.id}/publish`, {}, { 'if-match': `"${page.lockVersion}"` }))
+    return { t, admin, key, create, publish }
+  }
+
+  describe('contract: pages', () => {
+    it('drafts are private; saving checks the rev; publishing checks the lock version', async () => {
+      const { t, admin, create } = await setup()
+      const member = await newMember(t)
+      const page = await create()
+      expect(page).toMatchObject({ status: 'draft', publishedVersion: 0, lockVersion: 0, draft: { rev: 1 } })
+      expect((await member.get(`/api/pages/${page.id}`)).status).toBe(403)
+
+      expect((await admin.put(`/api/pages/${page.id}/draft`, { html: '<p>no rev</p>' })).status).toBe(409)
+      const saved = await json<DraftDto>(await admin.put(`/api/pages/${page.id}/draft`, { html: '<p>v2</p>' }, { 'if-match': '"1"' }))
+      expect(saved.rev).toBe(2)
+      expect((await admin.put(`/api/pages/${page.id}/draft`, { html: '<p>stale</p>' }, { 'if-match': '"1"' })).status).toBe(409)
+
+      expect((await admin.post(`/api/pages/${page.id}/publish`, {})).status).toBe(428)
+      const published = await json<PageDto>(await admin.post(`/api/pages/${page.id}/publish`, { comment: 'First' }, { 'if-match': '"0"' }))
+      expect(published).toMatchObject({ status: 'published', publishedVersion: 1, lockVersion: 1, draft: null, publishedHtml: '<p>v2</p>' })
+      expect((await member.get(`/api/pages/${page.id}`)).status).toBe(200)
+
+      await admin.put(`/api/pages/${page.id}/draft`, { html: '<p>v3</p>' })
+      const conflict = await admin.post(`/api/pages/${page.id}/publish`, {}, { 'if-match': '"0"' })
+      expect(conflict.status).toBe(409)
+      expect(await conflict.json()).toMatchObject({ code: 'page_conflict', current: { lockVersion: 1 } })
+      expect((await json<{ version: number; comment: string }[]>(await admin.get(`/api/pages/${page.id}/versions`))).map((v) => v.comment)).toEqual(['First'])
+    })
+
+    it('builds the tree, moves pages, rejects cycles and handles the trash', async () => {
+      const { admin, key, create, publish } = await setup()
+      const root = await publish(await create({ title: 'Root' }))
+      const child = await publish(await create({ title: 'Child', parentId: root.id }))
+      const tree = await json<PageTreeDto[]>(await admin.get(`/api/spaces/${key}/tree?all=1`))
+      expect(tree.map((n) => [n.title, n.children.map((c) => c.title)])).toEqual([['Root', ['Child']]])
+      expect(await json<{ code: string }>(await admin.post(`/api/pages/${root.id}/move`, { parentId: child.id }))).toMatchObject({ code: 'move_cycle' })
+      expect((await json<PageDto>(await admin.post(`/api/pages/${child.id}/move`, { parentId: null }))).parentId).toBeNull()
+
+      expect((await json<PageDto>(await admin.post(`/api/pages/${root.id}/archive`))).status).toBe('archived')
+      expect((await json<PageTreeDto[]>(await admin.get(`/api/spaces/${key}/tree?all=1`))).map((n) => n.title)).toEqual(['Child'])
+      expect((await json<{ title: string }[]>(await admin.get(`/api/spaces/${key}/tree?trash=1`))).map((n) => n.title)).toEqual(['Root'])
+      expect((await json<PageDto>(await admin.post(`/api/pages/${root.id}/restore`))).status).toBe('published')
+      const copy = await json<PageDto>(await admin.post(`/api/pages/${child.id}/copy`))
+      expect(copy).toMatchObject({ title: 'Copy of Child', status: 'draft' })
+    })
+
+    it('restricts viewing and editing, keeping whoever sets the list', async () => {
+      const { t, admin, create, publish } = await setup()
+      const member = await newMember(t)
+      const page = await publish(await create())
+      const set = await json<PageRestrictionsDto>(
+        await admin.put(`/api/pages/${page.id}/restrictions`, { view: [{ type: 'user', id: member.id }], edit: [{ type: 'group', id: MEMBERS_GROUP_ID }] }),
+      )
+      expect(set.view.map((p) => p.type).sort()).toEqual(['user', 'user'])
+      expect(set.edit.map((p) => p.id)).toContain(MEMBERS_GROUP_ID)
+      expect((await json<PageDto>(await member.get(`/api/pages/${page.id}`))).myAccess).toMatchObject({ view: true, edit: true })
+      await admin.put(`/api/pages/${page.id}/restrictions`, { view: [], edit: [] })
+      await admin.put(`/api/pages/${page.id}/restrictions`, { view: [{ type: 'group', id: MEMBERS_GROUP_ID }], edit: [] })
+      const other = await newMember(t)
+      expect((await other.get(`/api/pages/${page.id}`)).status).toBe(200)
+      await admin.put(`/api/pages/${page.id}/restrictions`, { view: [{ type: 'user', id: member.id }], edit: [] })
+      expect((await other.get(`/api/pages/${page.id}`)).status).toBe(403)
+    })
+  })
+
+  describe('contract: comments, labels, home and search', () => {
+    it('threads comments one level deep and resolves threads', async () => {
+      const { admin, create, publish } = await setup()
+      const page = await publish(await create())
+      const top = await json<CommentDto>(await admin.post(`/api/pages/${page.id}/comments`, { body: 'Question', anchorText: 'Body' }))
+      const reply = await json<CommentDto>(await admin.post(`/api/comments/${top.id}/replies`, { body: 'Answer' }))
+      const nested = await json<CommentDto>(await admin.post(`/api/comments/${reply.id}/replies`, { body: 'Thanks' }))
+      expect(nested.parentId).toBe(top.id)
+      expect((await json<CommentDto>(await admin.post(`/api/comments/${top.id}/resolve`))).resolved).toBe(true)
+      expect((await admin.post(`/api/comments/${reply.id}/resolve`)).status).toBe(400)
+      const threads = await json<CommentDto[]>(await admin.get(`/api/pages/${page.id}/comments`))
+      expect(threads).toHaveLength(1)
+      expect(threads[0].replies.map((r) => r.body)).toEqual(['Answer', 'Thanks'])
+    })
+
+    it('normalizes labels and lists the ones on visible pages', async () => {
+      const { admin, key, create, publish } = await setup()
+      const page = await publish(await create())
+      expect(await json<string[]>(await admin.put(`/api/pages/${page.id}/labels`, { labels: ['On Call', 'API', 'api'] }))).toEqual(['api', 'on-call'])
+      expect(await json<LabelCountDto[]>(await admin.get(`/api/labels?space=${key}`))).toEqual([
+        { name: 'api', count: 1 },
+        { name: 'on-call', count: 1 },
+      ])
+    })
+
+    it('fills the home lists and finds published pages', async () => {
+      const { admin, create, publish } = await setup()
+      const title = `Zebra ${unique()}`
+      const page = await publish(await create({ title, html: '<p>Striped animals of the savanna.</p>' }))
+      const draft = await create({ title: `${title} draft` })
+
+      expect((await admin.post(`/api/pages/${page.id}/views`)).status).toBe(204)
+      expect((await json<PageItemDto[]>(await admin.get('/api/me/recent')))[0]).toMatchObject({ id: page.id, spaceId: page.spaceId })
+      expect((await admin.put(`/api/pages/${page.id}/star`)).status).toBe(204)
+      expect((await json<StarredDto>(await admin.get('/api/me/starred'))).pages.map((p) => p.id)).toContain(page.id)
+      expect((await json<PageItemDto[]>(await admin.get('/api/me/drafts'))).map((p) => p.id)).toContain(draft.id)
+
+      const found = await json<SearchResponseDto>(await admin.get(`/api/search?q=${encodeURIComponent(title)}`))
+      expect(found.results.map((r) => r.id)).toEqual([page.id])
+      expect(found.results[0]).toMatchObject({ spaceId: page.spaceId, title })
+      const body = await json<SearchResponseDto>(await admin.get('/api/search?q=savanna'))
+      expect(body.results[0].snippet.some((p) => p.match && /savanna/i.test(p.text))).toBe(true)
+      const quick = await json<QuickSearchDto>(await admin.get(`/api/search/quick?q=${encodeURIComponent(title)}`))
+      expect(quick.pages.map((p) => p.id).sort()).toEqual([page.id, draft.id].sort())
     })
   })
 }

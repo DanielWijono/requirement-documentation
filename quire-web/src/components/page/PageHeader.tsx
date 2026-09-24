@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { ChevronRight, MoreHorizontal, Share2, Star } from 'lucide-react'
 import type { Page } from '../../types'
 import { useUserLookup } from '../../queries/users'
-import { ancestorChainIn, canEdit, useContentStore, usePageTree } from '../../store/contentStore'
+import { useTogglePageStar } from '../../queries/pages'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
@@ -28,13 +28,12 @@ export function PageHeader({
   const navigate = useNavigate()
   const { spaceId } = useParams()
   const space = useSpace(page.spaceId)
-  const tree = usePageTree(page.spaceId)
-  const togglePageStar = useContentStore((s) => s.togglePageStar)
+  const togglePageStar = useTogglePageStar()
   const pushToast = useUIStore((s) => s.pushToast)
   const [shareOpen, setShareOpen] = useState(false)
   const [condensed, setCondensed] = useState(false)
 
-  const chain = ancestorChainIn(tree, page.id).slice(0, -1)
+  const chain = page.ancestors ?? []
   const author = userById(page.updatedById)
 
   useEffect(() => {
@@ -99,7 +98,7 @@ export function PageHeader({
               {page.restricted && <RestrictedLozenge />}
               <button
                 onClick={() => {
-                  togglePageStar(page.id)
+                  togglePageStar.mutate({ page, on: !page.starred })
                   pushToast({ message: page.starred ? 'Removed from starred' : 'Starred', tone: 'success' })
                 }}
                 className="ml-1 text-(--color-text-secondary) hover:text-(--color-text-primary)"
@@ -132,12 +131,12 @@ export function PageHeader({
 function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
   const navigate = useNavigate()
   const { spaceId } = useParams()
-  const togglePageStar = useContentStore((s) => s.togglePageStar)
-  const actions = usePageActions(page.id)
+  const togglePageStar = useTogglePageStar()
+  const actions = usePageActions(page)
 
   return (
     <>
-      {canEdit(page) && (
+      {page.access?.edit && (
         <Button variant="primary" size="compact" onClick={() => navigate(`/spaces/${spaceId}/pages/${page.id}/edit`)}>
           Edit
         </Button>
@@ -146,7 +145,7 @@ function HeaderActions({ page, onShare }: { page: Page; onShare: () => void }) {
         variant="subtle"
         iconOnly
         icon={<Star strokeWidth={1.5} fill={page.starred ? 'currentColor' : 'none'} />}
-        onClick={() => togglePageStar(page.id)}
+        onClick={() => togglePageStar.mutate({ page, on: !page.starred })}
         aria-label="Star"
       />
       <Button variant="subtle" iconOnly icon={<Share2 strokeWidth={1.5} />} onClick={onShare} aria-label="Share" />

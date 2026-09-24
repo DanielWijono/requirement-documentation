@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -14,14 +15,18 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import clsx from 'clsx'
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, CloudOff, Loader2 } from 'lucide-react'
-import { canEdit, canView, usePage, useContentStore, ancestorChainIn, usePageTree } from '../../store/contentStore'
+import type { PageDto, PageTreeDto, WIDTH_MODES } from '@quire/shared'
 import { useUIStore } from '../../store/uiStore'
-import { users } from '../../data/mockData'
 import { useCurrentUser } from '../../hooks/useSession'
+import { ApiError } from '../../lib/apiClient'
+import { pageKeys, refreshPage, saveDraft, usePatchPage, usePublish } from '../../queries/pages'
+import { useSpace } from '../../queries/spaces'
+import { useUserLookup } from '../../queries/users'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Menu } from '../ui/Menu'
 import { Modal } from '../ui/Modal'
+import { usePageRoute } from '../page/usePageRoute'
 import { EditorToolbar } from './EditorToolbar'
 import { SlashMenu } from './SlashMenu'
 import { useSlashMenu } from './useSlashMenu'
@@ -32,36 +37,83 @@ import { Mention } from './extensions/mention'
 import { EditorShortcuts } from './extensions/editorShortcuts'
 import { SmartLinks } from './extensions/smartLinks'
 import { promptForLink } from './linkPrompt'
-import type { WidthMode } from '../../types'
-import { NotFound } from '../../routes/NotFound'
+import type { Page, WidthMode } from '../../types'
 import { Forbidden } from '../../routes/Forbidden'
-import { useSpace } from '../../queries/spaces'
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'offline' | 'error'
+/**
+ * `conflict`: someone else saved or published since this editor loaded; nothing more is sent until
+ * the person reloads or copies their changes out (design.md §9.3).
+ */
+type SaveState = 'saved' | 'saving' | 'offline' | 'error' | 'conflict'
+
+/** A page title from the cached trees, for turning pasted page links into titled links. */
+function cachedTitle(qc: ReturnType<typeof useQueryClient>, spaceId: string, pageId: string): string | null {
+  const walk = (nodes: PageTreeDto[] | undefined): string | null => {
+    for (const n of nodes ?? []) {
+      if (n.id === pageId) return n.title
+      const inner = walk(n.children)
+      if (inner) return inner
+    }
+    return null
+  }
+  return walk(qc.getQueryData<PageTreeDto[]>(pageKeys.tree(spaceId)))
+}
 
 export function EditorShell() {
+  const { pageId } = useParams()
+  const { page, fallback } = usePageRoute(pageId)
+  const userById = useUserLookup()
+  const qc = useQueryClient()
+  // Bumped by Reload after a conflict: remounts the editor on what the server has now.
+  const [generation, setGeneration] = useState(0)
+
+  if (!page) return fallback
+  if (!page.access?.edit) return <Forbidden action="edit" ownerName={userById(page.ownerId).name} />
+
+  async function reload() {
+    await qc.refetchQueries({ queryKey: pageKeys.page(page!.id), exact: true })
+    setGeneration((g) => g + 1)
+  }
+
+  return <EditorWorkspace key={`${page.id}:${generation}`} page={page} onReload={reload} />
+}
+
+function EditorWorkspace({ page, onReload }: { page: Page; onReload: () => Promise<void> }) {
   const currentUser = useCurrentUser()
-  const { pageId, spaceId } = useParams()
+  const { spaceId } = useParams()
   const navigate = useNavigate()
-  const page = usePage(pageId)
+  const qc = useQueryClient()
   const space = useSpace(spaceId)
-  const tree = usePageTree(spaceId)
-  const saveContent = useContentStore((s) => s.saveContent)
-  const updatePageMeta = useContentStore((s) => s.updatePageMeta)
+  const publish = usePublish()
+  const patchPage = usePatchPage()
   const pushToast = useUIStore((s) => s.pushToast)
   const setPendingCommentAnchor = useUIStore((s) => s.setPendingCommentAnchor)
   const openRightPanel = useUIStore((s) => s.openRightPanel)
 
-  const [title, setTitle] = useState(page?.title === 'Untitled' ? '' : page?.title ?? '')
-  const [widthMode, setWidthMode] = useState<WidthMode>(page?.widthMode ?? 'reading')
+  const [title, setTitle] = useState(page.title === 'Untitled' ? '' : page.title)
+  const [widthMode, setWidthMode] = useState<WidthMode>(page.widthMode)
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [lastSavedAt, setLastSavedAt] = useState(Date.now())
   const [, tick] = useState(0)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [versionComment, setVersionComment] = useState('')
   const [notifyWatchers, setNotifyWatchers] = useState(true)
+
+  // What the server last acknowledged: the draft revision and the page's lock version (If-Match values).
+  const revRef = useRef(page.draftRev)
+  const lockRef = useRef(page.lockVersion ?? 0)
+  const savedTitle = useRef(page.title)
+  // Body changes the server hasn't acknowledged yet, and the save in flight (saves go one at a time).
+  const dirty = useRef(false)
+  const inFlight = useRef<Promise<boolean> | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stateRef = useRef<SaveState>('saved')
+  const setState = (s: SaveState) => {
+    stateRef.current = s
+    setSaveState(s)
+  }
 
   const editor = useEditor({
     extensions: [
@@ -85,16 +137,14 @@ export function EditorShell() {
         },
         onEscape: () => document.querySelector<HTMLElement>('#editor-toolbar [tabindex="0"]')?.focus(),
       }),
-      SmartLinks.configure({
-        resolveTitle: (linkSpaceId, linkPageId) => {
-          const target = useContentStore.getState().pages[linkPageId]
-          return target && target.spaceId === linkSpaceId && canView(target) ? target.title : null
-        },
-      }),
+      SmartLinks.configure({ resolveTitle: (linkSpaceId, linkPageId) => cachedTitle(qc, linkSpaceId, linkPageId) }),
     ],
-    content: page?.contentHtml ?? '<p></p>',
+    content: page.contentHtml,
     editorProps: { attributes: { class: 'prose max-w-none' } },
-    onUpdate: () => scheduleSave(),
+    onUpdate: () => {
+      dirty.current = true
+      scheduleSave()
+    },
   })
 
   const slash = useSlashMenu(editor ?? null)
@@ -103,20 +153,82 @@ export function EditorShell() {
     editorRef.current = editor
   }, [editor])
 
+  function onConflict() {
+    setState('conflict')
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+  }
+
+  function failed(err: unknown) {
+    if (err instanceof ApiError && err.status === 409) onConflict()
+    else setState(err instanceof ApiError && err.offline ? 'offline' : 'error')
+  }
+
+  /** Send the body if it changed; resolves true once the server has everything. */
+  async function flush(): Promise<boolean> {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    while (inFlight.current) await inFlight.current
+    if (stateRef.current === 'conflict') return false
+    const ed = editorRef.current
+    if (!dirty.current || !ed || ed.isDestroyed) return stateRef.current === 'saved'
+    const html = ed.getHTML()
+    dirty.current = false
+    setState('saving')
+    const run = saveDraft(page.id, html, revRef.current)
+      .then((draft) => {
+        revRef.current = draft.rev
+        setLastSavedAt(Date.now())
+        if (!dirty.current) setState('saved')
+        return true
+      })
+      .catch((err: unknown) => {
+        dirty.current = true
+        failed(err)
+        return false
+      })
+      .finally(() => {
+        inFlight.current = null
+      })
+    inFlight.current = run
+    return run
+  }
+
   function scheduleSave() {
+    if (stateRef.current === 'conflict') return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     if (!navigator.onLine) {
-      setSaveState('offline')
+      setState('offline')
       return
     }
-    setSaveState('saving')
-    saveTimer.current = setTimeout(() => {
-      if (!page || !editor || editor.isDestroyed) return
-      saveContent(page.id, editor.getHTML(), { publish: false })
-      setSaveState('saved')
-      setLastSavedAt(Date.now())
-    }, 700)
+    setState('saving')
+    saveTimer.current = setTimeout(() => void flush(), 700)
   }
+
+  // Title and width saves run one after another: each needs the lock version the previous one returned.
+  const metaQueue = useRef<Promise<unknown>>(Promise.resolve())
+
+  /** Save the title (and width) if they changed; keeps the lock version current. */
+  function saveMeta(patch: { title?: string; widthMode?: (typeof WIDTH_MODES)[number] }): Promise<boolean> {
+    const run = metaQueue.current.then(async () => {
+      const changes = { ...patch }
+      // Checked when it runs: a save queued behind an identical one has nothing left to do.
+      if (changes.title !== undefined && changes.title === savedTitle.current) delete changes.title
+      if (Object.keys(changes).length === 0) return true
+      if (stateRef.current === 'conflict') return false
+      try {
+        const dto: PageDto = await patchPage.mutateAsync({ page: { id: page.id, lockVersion: lockRef.current }, patch: changes })
+        lockRef.current = dto.lockVersion
+        savedTitle.current = dto.title
+        return true
+      } catch (err) {
+        failed(err)
+        return false
+      }
+    })
+    metaQueue.current = run
+    return run
+  }
+
+  const titleToSave = () => title.trim() || 'Untitled'
 
   useEffect(() => {
     return () => {
@@ -126,10 +238,11 @@ export function EditorShell() {
 
   useEffect(() => {
     function goOffline() {
-      setSaveState('offline')
+      if (stateRef.current !== 'conflict') setState('offline')
     }
     function goOnline() {
-      scheduleSave()
+      if (dirty.current) scheduleSave()
+      else if (stateRef.current === 'offline') setState('saved')
     }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
@@ -140,62 +253,92 @@ export function EditorShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The browser's own "leave site?" prompt, only while something hasn't reached the server (§9.2).
+  const unsent = saveState !== 'saved'
+  useEffect(() => {
+    if (!unsent) return
+    function warn(e: BeforeUnloadEvent) {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsent])
+
   useEffect(() => {
     const id = setInterval(() => tick((n) => n + 1), 1000)
     return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
-    if (!page) return
     function handler(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        pushToast({ message: 'Saved', tone: 'success' })
+        void flush().then((ok) => ok && pushToast({ message: 'Saved', tone: 'success' }))
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault()
-        handlePrimaryAction()
+        void handlePrimaryAction()
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, editor])
+  }, [editor, title])
 
-  const chain = useMemo(() => (page ? ancestorChainIn(tree, page.id).slice(0, -1) : []), [tree, page])
-
-  if (!page) return <NotFound />
-  if (!canView(page)) return <Forbidden page={page} />
-  if (!canEdit(page)) return <Forbidden page={page} action="edit" />
   if (!editor) return null
 
-  const isNeverPublished = page.versions.length === 0
+  const chain = page.ancestors ?? []
+  const isNeverPublished = (page.publishedVersion ?? 0) === 0
   const primaryLabel = isNeverPublished ? 'Publish' : 'Update'
+  const pagePath = `/spaces/${spaceId}/pages/${page.id}`
 
-  function handlePrimaryAction(comment?: string) {
-    if (!page || !editor) return
-    updatePageMeta(page.id, { title: title.trim() || 'Untitled' })
-    saveContent(page.id, editor.getHTML(), { publish: true, comment })
-    setPublishOpen(false)
-    pushToast({ message: isNeverPublished ? 'Published' : 'Updated', tone: 'success' })
-    navigate(`/spaces/${spaceId}/pages/${page.id}`)
+  async function handlePrimaryAction(comment?: string) {
+    if (publishing) return
+    setPublishing(true)
+    try {
+      if (!(await saveMeta({ title: titleToSave() })) || !(await flush())) {
+        if (stateRef.current !== 'conflict') pushToast({ message: 'Couldn’t save your changes, so nothing was published. Try again.', tone: 'danger' })
+        return
+      }
+      try {
+        await publish.mutateAsync({ page: { id: page.id, lockVersion: lockRef.current }, comment })
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'nothing_to_publish') {
+          // Nothing changed since the last publish: just go back to reading.
+          navigate(pagePath)
+          return
+        }
+        failed(err)
+        if (stateRef.current !== 'conflict') pushToast({ message: `Couldn’t publish: ${err instanceof Error ? err.message : 'unknown error'}`, tone: 'danger' })
+        return
+      }
+      setPublishOpen(false)
+      pushToast({ message: isNeverPublished ? 'Published' : 'Updated', tone: 'success' })
+      navigate(pagePath)
+    } finally {
+      setPublishing(false)
+    }
   }
 
-  function handleSaveAsDraft() {
-    if (!page || !editor) return
-    updatePageMeta(page.id, { title: title.trim() || 'Untitled' })
-    saveContent(page.id, editor.getHTML(), { publish: false })
-    pushToast({ message: 'Saved as draft', tone: 'info' })
-    navigate(`/spaces/${spaceId}/pages/${page.id}`)
+  async function handleSaveAsDraft() {
+    if ((await saveMeta({ title: titleToSave() })) && (await flush())) {
+      pushToast({ message: 'Saved as draft', tone: 'info' })
+      navigate(pagePath)
+    }
   }
 
-  function handleClose() {
-    if (!page) return
-    if (saveState === 'saving' || saveState === 'offline' || saveState === 'error') {
+  async function handleClose() {
+    await saveMeta({ title: titleToSave() })
+    if (stateRef.current !== 'saved' || dirty.current) {
       setCloseConfirmOpen(true)
       return
     }
-    updatePageMeta(page.id, { title: title.trim() || 'Untitled' })
-    navigate(`/spaces/${spaceId}/pages/${page.id}`)
+    void refreshPage(qc, page.id, page.spaceId)
+    navigate(pagePath)
+  }
+
+  async function copyMyChanges() {
+    await navigator.clipboard?.writeText(editor?.getHTML() ?? '')
+    pushToast({ message: 'Your version is on the clipboard', tone: 'success' })
   }
 
   function handleComment(selectedText: string) {
@@ -208,18 +351,15 @@ export function EditorShell() {
   return (
     <div className="flex-1 flex flex-col min-w-0 editor-canvas">
       <header className="h-12 shrink-0 flex items-center gap-2 px-3 border-b border-(--color-border-default) bg-(--color-bg-canvas)">
-        <Button variant="subtle" iconOnly icon={<ChevronLeft strokeWidth={1.5} />} onClick={handleClose} aria-label="Close editor" />
+        <Button variant="subtle" iconOnly icon={<ChevronLeft strokeWidth={1.5} />} onClick={() => void handleClose()} aria-label="Close editor" />
         <span className="t-ui-md-medium truncate">
           Editing &middot; {space?.key} {chain.length > 0 && `/ ${chain.map((c) => c.title).join(' / ')}`}
         </span>
-        <SaveIndicator state={saveState} secondsAgo={secondsAgo} onRetry={scheduleSave} />
+        <SaveIndicator state={saveState} secondsAgo={secondsAgo} onRetry={() => void flush()} />
         <div className="ml-auto flex items-center gap-3 shrink-0">
-          <div className="flex -space-x-2">
-            <Avatar user={currentUser} size={24} presence />
-            <Avatar user={users[1]} size={24} presence />
-          </div>
+          <Avatar user={currentUser} size={24} presence />
           <div className="flex items-center">
-            <Button variant="primary" className="rounded-r-none" onClick={() => handlePrimaryAction()}>
+            <Button variant="primary" className="rounded-r-none" loading={publishing} disabled={saveState === 'conflict'} onClick={() => void handlePrimaryAction()}>
               {primaryLabel}
             </Button>
             <Menu
@@ -229,14 +369,34 @@ export function EditorShell() {
               }
               items={[
                 { label: 'Publish options…', onSelect: () => setPublishOpen(true) },
-                ...(isNeverPublished ? [{ label: 'Save as draft', onSelect: handleSaveAsDraft }] : []),
+                ...(isNeverPublished ? [{ label: 'Save as draft', onSelect: () => void handleSaveAsDraft() }] : []),
               ]}
             />
           </div>
         </div>
       </header>
 
-      <EditorToolbar editor={editor} widthMode={widthMode} onWidthModeChange={(m) => { setWidthMode(m); updatePageMeta(page.id, { widthMode: m }) }} />
+      {saveState === 'conflict' && (
+        <div role="alert" className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-2 bg-(--status-warning-subtle) text-(--status-warning-text) t-ui-md">
+          <AlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+          <span className="grow">Someone else changed this page while you were editing. Your version is still here, but it hasn’t been saved.</span>
+          <Button variant="default" size="compact" onClick={() => void copyMyChanges()}>
+            Copy my changes
+          </Button>
+          <Button variant="primary" size="compact" onClick={() => void onReload()}>
+            Reload
+          </Button>
+        </div>
+      )}
+
+      <EditorToolbar
+        editor={editor}
+        widthMode={widthMode}
+        onWidthModeChange={(m) => {
+          setWidthMode(m)
+          void saveMeta({ widthMode: m })
+        }}
+      />
 
       <div className="flex-1 overflow-y-auto">
         <div
@@ -250,7 +410,7 @@ export function EditorShell() {
           <textarea
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => updatePageMeta(page.id, { title: title.trim() || 'Untitled' })}
+            onBlur={() => void saveMeta({ title: titleToSave() })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -285,7 +445,7 @@ export function EditorShell() {
             <Button variant="default" data-cancel onClick={() => setCloseConfirmOpen(false)}>
               Keep editing
             </Button>
-            <Button variant="danger" onClick={() => navigate(`/spaces/${spaceId}/pages/${page.id}`)}>
+            <Button variant="danger" onClick={() => navigate(pagePath)}>
               Discard and leave
             </Button>
           </>
@@ -307,7 +467,7 @@ export function EditorShell() {
             <Button variant="default" onClick={() => setPublishOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={() => handlePrimaryAction(versionComment)}>
+            <Button variant="primary" loading={publishing} onClick={() => void handlePrimaryAction(versionComment)}>
               {primaryLabel}
             </Button>
           </>
@@ -340,7 +500,14 @@ function SaveIndicator({ state, secondsAgo, onRetry }: { state: SaveState; secon
   if (state === 'offline') {
     return (
       <span className="t-ui-sm flex items-center gap-1.5 text-(--status-warning-text)" aria-live="polite">
-        <CloudOff className="w-3.5 h-3.5" strokeWidth={1.5} /> Offline &mdash; changes stored locally
+        <CloudOff className="w-3.5 h-3.5" strokeWidth={1.5} /> Offline &mdash; not saved yet, keep this tab open
+      </span>
+    )
+  }
+  if (state === 'conflict') {
+    return (
+      <span className="t-ui-sm flex items-center gap-1.5 text-(--status-danger-text)">
+        <AlertTriangle className="w-3.5 h-3.5" strokeWidth={1.5} /> Not saved
       </span>
     )
   }

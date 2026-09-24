@@ -1,4 +1,4 @@
-import type { PageDto, PageNodeDto, PrincipalDto, PrincipalRef, Subject } from '@quire/shared'
+import type { PageDto, PageNodeDto, PageTreeDto, PrincipalDto, PrincipalRef, Subject } from '@quire/shared'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Queryable } from '../db/client.ts'
 import * as t from '../db/schema.ts'
@@ -97,6 +97,7 @@ export async function treeLevel(db: Queryable, subject: Subject, spaceId: string
       status: t.pages.status,
       hasDraft: sql<boolean>`exists (select 1 from page_drafts d where d.page_id = ${t.pages.id})`,
       restricted: sql<boolean>`exists (select 1 from page_restrictions r where r.page_id = ${t.pages.id})`,
+      updatedAt: t.pages.updatedAt,
     })
     .from(t.pages)
     .where(and(eq(t.pages.spaceId, spaceId), statusFilter, visiblePagesSql(subject)))
@@ -119,7 +120,40 @@ export async function treeLevel(db: Queryable, subject: Subject, spaceId: string
           ),
         )
   const parents = new Set(withChildren.map((r) => r.parentId))
-  return rows.map((r) => ({ ...r, hasDraft: r.status === 'published' && r.hasDraft, hasChildren: parents.has(r.id) }))
+  return rows.map((r) => ({ ...r, hasDraft: r.status === 'published' && r.hasDraft, hasChildren: parents.has(r.id), updatedAt: r.updatedAt.toISOString() }))
+}
+
+/**
+ * Every live page of the space the subject can see, nested. A visible page whose parent is hidden
+ * (someone else's draft, say) is shown at the top level rather than lost.
+ */
+export async function treeAll(db: Queryable, subject: Subject, spaceId: string): Promise<PageTreeDto[]> {
+  const rows = await db
+    .select({
+      id: t.pages.id,
+      parentId: t.pages.parentId,
+      title: t.pages.title,
+      icon: t.pages.icon,
+      status: t.pages.status,
+      hasDraft: sql<boolean>`exists (select 1 from page_drafts d where d.page_id = ${t.pages.id})`,
+      restricted: sql<boolean>`exists (select 1 from page_restrictions r where r.page_id = ${t.pages.id})`,
+      updatedAt: t.pages.updatedAt,
+    })
+    .from(t.pages)
+    .where(and(eq(t.pages.spaceId, spaceId), inArray(t.pages.status, [...LIVE]), visiblePagesSql(subject)))
+    .orderBy(asc(t.pages.position), asc(t.pages.title))
+  const nodes = new Map<string, PageTreeDto>(
+    rows.map((r) => [r.id, { ...r, hasDraft: r.status === 'published' && r.hasDraft, hasChildren: false, updatedAt: r.updatedAt.toISOString(), children: [] }]),
+  )
+  const roots: PageTreeDto[] = []
+  for (const node of nodes.values()) {
+    const parent = node.parentId ? nodes.get(node.parentId) : undefined
+    if (parent) {
+      parent.children.push(node)
+      parent.hasChildren = true
+    } else roots.push(node)
+  }
+  return roots
 }
 
 /** A position that puts a page at `index` among the other live children of `parentId`. */

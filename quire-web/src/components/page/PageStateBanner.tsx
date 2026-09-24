@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ArchiveRestore, Info } from 'lucide-react'
 import type { Page } from '../../types'
 import { useUserLookup } from '../../queries/users'
-import { useContentStore } from '../../store/contentStore'
+import { useDiscardDraft, useTrashAction } from '../../queries/pages'
 import { useUIStore } from '../../store/uiStore'
 
 export function PageStateBanner({
@@ -15,8 +15,8 @@ export function PageStateBanner({
   onToggleDraftView: () => void
 }) {
   const userById = useUserLookup()
-  const discardChanges = useContentStore((s) => s.discardChanges)
-  const restorePage = useContentStore((s) => s.restorePage)
+  const discardDraft = useDiscardDraft()
+  const trash = useTrashAction()
   const pushToast = useUIStore((s) => s.pushToast)
 
   if (page.state === 'draft') {
@@ -37,16 +37,22 @@ export function PageStateBanner({
         <button className="t-ui-sm-medium underline" onClick={onToggleDraftView}>
           {viewingDraft ? 'Show published' : 'View'}
         </button>
-        <button
-          className="t-ui-sm-medium underline"
-          onClick={() => {
-            discardChanges(page.id)
-            if (viewingDraft) onToggleDraftView()
-            pushToast({ message: 'Changes discarded', tone: 'info' })
-          }}
-        >
-          Discard
-        </button>
+        {page.access?.edit && (
+          <button
+            className="t-ui-sm-medium underline"
+            onClick={() =>
+              discardDraft.mutate(page, {
+                onSuccess: () => {
+                  if (viewingDraft) onToggleDraftView()
+                  pushToast({ message: 'Changes discarded', tone: 'info' })
+                },
+                onError: (err) => pushToast({ message: `Couldn’t discard the changes: ${err.message}`, tone: 'danger' }),
+              })
+            }
+          >
+            Discard
+          </button>
+        )}
       </Banner>
     )
   }
@@ -55,15 +61,22 @@ export function PageStateBanner({
     return (
       <Banner tone="neutral" icon={<ArchiveRestore className="w-4 h-4" strokeWidth={1.5} />}>
         <span className="grow">Archived</span>
-        <button
-          className="t-ui-sm-medium underline"
-          onClick={() => {
-            restorePage(page.id)
-            pushToast({ message: 'Page restored', tone: 'success' })
-          }}
-        >
-          Restore
-        </button>
+        {page.access?.delete && (
+          <button
+            className="t-ui-sm-medium underline"
+            onClick={() =>
+              trash.mutate(
+                { pageId: page.id, action: 'restore' },
+                {
+                  onSuccess: () => pushToast({ message: 'Page restored', tone: 'success' }),
+                  onError: (err) => pushToast({ message: `Couldn’t restore the page: ${err.message}`, tone: 'danger' }),
+                },
+              )
+            }
+          >
+            Restore
+          </button>
+        )}
       </Banner>
     )
   }
